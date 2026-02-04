@@ -981,12 +981,12 @@ with st.sidebar:
     if 'tera_ulang_tahun' in df.columns and df['tera_ulang_tahun'].notna().any():
         years = sorted(df['tera_ulang_tahun'].dropna().astype(int).unique().tolist())
         year_options = years[::-1]  # terbaru di atas
-        year_pick = st.selectbox("Tahun Tera Ulang", options=year_options, index=0)
+        year_pick = st.selectbox("Tahun Tera Ulang", options=year_options, index=0, key="year_pick")
     else:
         year_pick = datetime.now().year
         st.info("Kolom tahun tidak ditemukan, default tahun berjalan.")
 
-        # --- Data khusus tahun terpilih (opsi kec/pasar mengikuti tahun) ---
+    # --- Data khusus tahun terpilih (opsi kec/pasar mengikuti tahun) ---
     df_y = df.copy()
     if 'tera_ulang_tahun' in df_y.columns:
         df_y = df_y[df_y['tera_ulang_tahun'] == int(year_pick)]
@@ -999,7 +999,7 @@ with st.sidebar:
     st.session_state.setdefault("pasar_sel", "(Semua)")
     st.session_state.setdefault("year_prev", int(year_pick))
 
-    # kalau tahun berubah -> reset pilihan agar tidak nyangkut ke opsi yang hilang
+    # kalau tahun berubah -> reset pilihan agar tidak nyangkut
     if int(year_pick) != int(st.session_state["year_prev"]):
         st.session_state["kec_sel"] = "(Semua)"
         st.session_state["pasar_sel"] = "(Semua)"
@@ -1008,7 +1008,7 @@ with st.sidebar:
     # callback: saat kec berubah
     def on_kec_change():
         k = st.session_state["kec_sel"]
-        if k != "(Semua)" and {'kecamatan','nama_pasar'}.issubset(df_y.columns):
+        if k != "(Semua)" and {'kecamatan', 'nama_pasar'}.issubset(df_y.columns):
             valid_pasar = ["(Semua)"] + uniq_clean(df_y.loc[df_y['kecamatan'] == k, 'nama_pasar'])
             if st.session_state["pasar_sel"] not in valid_pasar:
                 st.session_state["pasar_sel"] = "(Semua)"
@@ -1016,18 +1016,17 @@ with st.sidebar:
     # callback: saat pasar berubah
     def on_pasar_change():
         p = st.session_state["pasar_sel"]
-        # jika user pilih pasar dulu, kec otomatis mengikuti (berdasarkan tahun terpilih)
-        if p != "(Semua)" and {'nama_pasar','kecamatan'}.issubset(df_y.columns):
+        if p != "(Semua)" and {'nama_pasar', 'kecamatan'}.issubset(df_y.columns):
             kec_auto = df_y.loc[df_y['nama_pasar'] == p, 'kecamatan'].dropna()
             if not kec_auto.empty:
                 st.session_state["kec_sel"] = kec_auto.iloc[0]
 
-    # validasi state sebelum render widget (hindari error "value not in options")
+    # validasi state sebelum render widget (hindari "value not in options")
     kec_opsi = ["(Semua)"] + all_kec
     if st.session_state["kec_sel"] not in kec_opsi:
         st.session_state["kec_sel"] = "(Semua)"
 
-    if st.session_state["kec_sel"] != "(Semua)" and {'kecamatan','nama_pasar'}.issubset(df_y.columns):
+    if st.session_state["kec_sel"] != "(Semua)" and {'kecamatan', 'nama_pasar'}.issubset(df_y.columns):
         pasar_opsi = ["(Semua)"] + uniq_clean(df_y.loc[df_y['kecamatan'] == st.session_state["kec_sel"], 'nama_pasar'])
     else:
         pasar_opsi = ["(Semua)"] + all_pasar
@@ -1043,7 +1042,7 @@ with st.sidebar:
     nama_pasar = st.session_state["pasar_sel"]
 
     # --- Kartu info pasar terpilih (ungu elegan) ---
-    if ('nama_pasar' in df.columns) and (nama_pasar != "(Semua)"):
+    if ('nama_pasar' in df_y.columns) and (nama_pasar != "(Semua)"):
         info = df_y.loc[df_y['nama_pasar'] == nama_pasar].head(1)
         if not info.empty:
             nama = info['nama_pasar'].iat[0]
@@ -1059,11 +1058,8 @@ with st.sidebar:
                     border-radius:12px;
                     border-left:5px solid #8000FF;
                     box-shadow:0px 1px 4px rgba(0,0,0,0.15);
-                    margin-top:10px;
-                    ">
-                    <h4 style="margin-bottom:6px; color:#4B0082; font-size:16px;">
-                        🏪 {nama}
-                    </h4>
+                    margin-top:10px;">
+                    <h4 style="margin-bottom:6px; color:#4B0082; font-size:16px;">🏪 {nama}</h4>
                     <p style="margin:2px 0; font-size:13px; color:#222;">
                         <b>Kecamatan:</b> {kecamatan}<br>
                         <b>Alamat:</b> {alamat}
@@ -1093,16 +1089,10 @@ with st.sidebar:
                 return int(pd.to_numeric(df_src[c], errors="coerce").fillna(0).sum())
         return 0
 
-    # Gunakan df terfilter untuk sidebar totals
-    # Gunakan df yang sudah terfilter agar sesuai pilihan tahun/kecamatan/pasar
-    fdf_sidebar = df.copy()
-
-    if 'tera_ulang_tahun' in fdf_sidebar.columns:
-        fdf_sidebar = fdf_sidebar[fdf_sidebar['tera_ulang_tahun'] == int(year_pick)]
-
+    # pakai df_y dulu (sudah tahun terpilih), lalu filter kec/pasar
+    fdf_sidebar = df_y.copy()
     if 'kecamatan' in fdf_sidebar.columns and kec != "(Semua)":
         fdf_sidebar = fdf_sidebar[fdf_sidebar['kecamatan'] == kec]
-
     if 'nama_pasar' in fdf_sidebar.columns and nama_pasar != "(Semua)":
         fdf_sidebar = fdf_sidebar[fdf_sidebar['nama_pasar'] == nama_pasar]
 
@@ -1120,9 +1110,6 @@ with st.sidebar:
     st.markdown(f"**Total UTTP (semua jenis):** {total_uttp:,}")
     st.markdown("---")
 
-    # (Opsional) Toggle choropleth
-    #show_choro = st.checkbox("Tampilkan choropleth per kecamatan", value=False)
-    #choro_metric = st.selectbox("Indikator choropleth", ["jumlah_pasar", "total_uttp", "total_pedagang"], index=1)
 
 # =========================
 # FILTER DATA (UTAMA)
