@@ -534,19 +534,19 @@ def render_dashboard_pasar():
 # =========================
 # KPIs (DINAMIS)
 # =========================
-if kec == "(Semua)" and nama_pasar == "(Semua)":
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        total_kec = clean_str_series(fdf["kecamatan"]).nunique() if "kecamatan" in fdf.columns else 0
-        st.metric("Total Kecamatan", total_kec)
-    with c2:
-        total_pasar = clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0
-        st.metric("Total Seluruh Pasar", total_pasar)
-    with c3:
-        st.metric("Tahun", int(year_pick))
-    with c4:
-        total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
-        st.metric("Total Timbangan", total_timb)
+    if kec == "(Semua)" and nama_pasar == "(Semua)":
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            total_kec = clean_str_series(fdf["kecamatan"]).nunique() if "kecamatan" in fdf.columns else 0
+            st.metric("Total Kecamatan", total_kec)
+        with c2:
+            total_pasar = clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0
+            st.metric("Total Seluruh Pasar", total_pasar)
+        with c3:
+            st.metric("Tahun", int(year_pick))
+        with c4:
+            total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
+            st.metric("Total Timbangan", total_timb)
 
 elif kec != "(Semua)" and nama_pasar == "(Semua)":
     c1, c2, c3, c4 = st.columns(4)
