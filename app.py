@@ -10,32 +10,22 @@ import numpy as np
 import json
 import glob
 
+
+# =========================
+# PAGE CONFIG
+# =========================
 st.set_page_config(
-    page_title="Status Tera Ulang Pasar – Kab. Tangerang",
-    page_icon="🏪",
+    page_title="Dashboard Kemetrologian – Kab. Tangerang",
+    page_icon="📊",
     layout="wide"
 )
-
-st.title("🏪 Status Tera Ulang Timbangan Pasar – Kabupaten Tangerang")
-with st.sidebar:
-    st.markdown("## 📌 Pilih Dashboard")
-    page = st.radio(
-        "Menu",
-        ["🏪 Pasar (Tera Ulang)", "⛽ SPBU"],
-        index=0,
-        label_visibility="collapsed"
-    )
-    st.markdown("---")
-
-st.caption("Dinas Perindustrian dan Perdagangan • Bidang Kemetrologian")
 
 # =========================
 # FILE UTAMA (SEFOLDER)
 # =========================
-FILE_EXCEL = "DATA_DASHBOARD_PASAR.xlsx"          # <-- sesuai nama Dayu
-FILE_GEOJSON = "batas_kecamatan_tangerang.geojson"  # <-- sesuaikan kalau beda
-FILE_SPBU = "Data SPBU Kab. Tangerang.csv"   # sesuai nama file kamu
+FILE_EXCEL   = "DATA_DASHBOARD_PASAR.xlsx"
 FILE_GEOJSON = "batas_kecamatan_tangerang.geojson"
+FILE_SPBU    = "Data SPBU Kab. Tangerang.csv"
 
 
 # =========================
@@ -45,19 +35,20 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(s).strip().lower())
 
 def parse_coord(val):
-    """Parse koordinat dari berbagai format"""
+    """Parse koordinat dari berbagai format ke (lat, lon)"""
     try:
-        if pd.isna(val) or val == "":
+        if pd.isna(val) or str(val).strip() == "":
             return np.nan, np.nan
 
         s = str(val).strip()
-        # Handle format: "-6.26435, 106.42592"
-        if ',' in s:
-            parts = [p.strip() for p in s.split(',')]
+
+        # format: "-6.26435, 106.42592"
+        if "," in s:
+            parts = [p.strip() for p in s.split(",")]
             if len(parts) >= 2:
                 lat = float(parts[0])
                 lon = float(parts[1])
-                # Auto-swap jika format terbalik (lon, lat)
+                # swap jika terbalik (lon,lat)
                 if abs(lat) > 90 and abs(lon) <= 90:
                     lat, lon = lon, lat
                 return lat, lon
@@ -70,15 +61,15 @@ def parse_coord(val):
                 lat, lon = lon, lat
             return lat, lon
 
-    except Exception as e:
-        st.warning(f"Gagal parse koordinat: {val}, error: {e}")
+    except Exception:
+        pass
+
     return np.nan, np.nan
 
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return df
 
-    # strip nama kolom biar aman dari spasi
     df.columns = [str(c).strip() for c in df.columns]
 
     rename_mapping = {
@@ -99,54 +90,47 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
         df['lat'] = coords.apply(lambda x: x[0])
         df['lon'] = coords.apply(lambda x: x[1])
 
-    # tambahkan Dacin juga (data Dayu ada)
+    # Tambahkan ringkasan jenis timbangan
     timbangan_cols = [
         'Timb. Pegas', 'Timb. Meja', 'Timb. Elektronik',
         'Timb. Sentisimal', 'Timb. Bobot Ingsut', 'Neraca', 'Dacin'
     ]
-    available_timbangan_cols = [col for col in timbangan_cols if col in df.columns]
+    available = [c for c in timbangan_cols if c in df.columns]
 
-    if available_timbangan_cols:
-        def summarize_timbangan(row):
+    if available:
+        def summarize(row):
             parts = []
-            for col in available_timbangan_cols:
-                try:
-                    val = pd.to_numeric(row[col], errors='coerce')
-                    if pd.notna(val) and val > 0:
-                        label = col.replace('Timb. ', '').replace('Timb.', '').strip()
-                        parts.append(f"{label}: {int(val)}")
-                except Exception:
-                    continue
+            for col in available:
+                val = pd.to_numeric(row[col], errors="coerce")
+                if pd.notna(val) and val > 0:
+                    label = col.replace("Timb.", "").replace("Timb", "").replace(".", "").strip()
+                    parts.append(f"{label}: {int(val)}")
             return "; ".join(parts) if parts else "Tidak ada data"
+        df["jenis_timbangan"] = df.apply(summarize, axis=1)
 
-        df['jenis_timbangan'] = df.apply(summarize_timbangan, axis=1)
-
-    # norm untuk join ke geojson
-    if 'kecamatan' in df.columns:
-        df['kec_norm'] = df['kecamatan'].apply(_norm)
-    if 'nama_pasar' in df.columns:
-        df['pasar_norm'] = df['nama_pasar'].apply(_norm)
+    if "kecamatan" in df.columns:
+        df["kec_norm"] = df["kecamatan"].apply(_norm)
+    if "nama_pasar" in df.columns:
+        df["pasar_norm"] = df["nama_pasar"].apply(_norm)
 
     return df
 
 def create_sample_data():
-    """Buat data sample jika file asli bermasalah"""
-    st.warning("Membuat data sample karena file asli bermasalah")
-
     sample_data = {
         'nama_pasar': ['Cisoka', 'Curug', 'Mauk', 'Cikupa', 'Pasar Kemis'],
         'kecamatan': ['Cisoka', 'Curug', 'Mauk', 'Cikupa', 'Pasar Kemis'],
         'alamat': [
-            'Jl. Ps. Cisoka No.44, Cisoka, Kec. Cisoka, Kabupaten Tangerang, Banten 15730',
-            'Jl. Raya Curug, Curug Wetan, Kec. Curug, Kabupaten Tangerang, Banten 15810',
-            'East Mauk, Mauk, Tangerang Regency, Banten 15530',
-            'Jl. Raya Serang, Cikupa, Kec. Cikupa, Kabupaten Tangerang, Banten 15710',
-            'RGPJ+FJX, Jalan Raya, Sukaasih, Pasar Kemis, Tangerang Regency, Banten 15560'
+            'Jl. Ps. Cisoka No.44, Cisoka, Kec. Cisoka, Kabupaten Tangerang',
+            'Jl. Raya Curug, Curug Wetan, Kec. Curug, Kabupaten Tangerang',
+            'East Mauk, Mauk, Tangerang Regency',
+            'Jl. Raya Serang, Cikupa, Kec. Cikupa, Kabupaten Tangerang',
+            'Jalan Raya, Sukaasih, Pasar Kemis, Tangerang'
         ],
         'lat': [-6.26435, -6.26100, -6.06044, -6.22907, -6.16365],
         'lon': [106.42592, 106.55858, 106.51129, 106.51981, 106.53155],
         'tera_ulang_tahun': [2025, 2025, 2025, 2025, 2025],
         'jumlah_timbangan_tera_ulang': [195, 251, 161, 257, 174],
+        'total_pedagang': [100, 120, 90, 150, 110],
         'jenis_timbangan': [
             'Pegas: 77; Meja: 30; Elektronik: 87',
             'Pegas: 60; Meja: 76; Elektronik: 107',
@@ -161,13 +145,10 @@ def create_sample_data():
     return df
 
 def coerce_types(df: pd.DataFrame) -> pd.DataFrame:
-    """Pastikan tipe data konsisten"""
     if 'tera_ulang_tahun' in df.columns:
         df['tera_ulang_tahun'] = pd.to_numeric(df['tera_ulang_tahun'], errors='coerce').fillna(0).astype(int)
-
     if 'jumlah_timbangan_tera_ulang' in df.columns:
         df['jumlah_timbangan_tera_ulang'] = pd.to_numeric(df['jumlah_timbangan_tera_ulang'], errors='coerce').fillna(0).astype(int)
-
     if 'total_pedagang' in df.columns:
         df['total_pedagang'] = pd.to_numeric(df['total_pedagang'], errors='coerce').fillna(0).astype(int)
 
@@ -182,20 +163,17 @@ def coerce_types(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def clean_str_series(series: pd.Series) -> pd.Series:
-    """Bersihkan series string"""
     if series is None:
         return pd.Series([], dtype=str)
     s = series.astype(str).str.strip()
     s = s.str.title()
-    mask_bad = s.str.lower().isin(["", "nan", "none", "null", "na", "n/a", "-", "--"])
-    return s[~mask_bad]
+    bad = s.str.lower().isin(["", "nan", "none", "null", "na", "n/a", "-", "--"])
+    return s[~bad]
 
 def uniq_clean(series: pd.Series) -> list:
-    """Ambil nilai unik yang sudah dibersihkan"""
     return sorted(clean_str_series(series).unique().tolist())
 
 def marker_color(year: int, selected_year: int):
-    """Warna marker relatif terhadap tahun yang dipilih (selected_year)"""
     if year is None or year == 0:
         return "gray"
     if year == selected_year:
@@ -206,13 +184,12 @@ def marker_color(year: int, selected_year: int):
         return "red"
 
 
+# =========================
+# LOADERS
+# =========================
 @st.cache_data
 def load_excel(path_like: str):
-    """
-    Load Excel sefolder. Jika user kasih tanpa ekstensi, auto-detect.
-    """
     try:
-        # auto-detect kalau user menulis "DATA_DASHBOARD_PASAR" tanpa ekstensi
         if "." not in path_like:
             matches = glob.glob(path_like + ".*")
             if not matches:
@@ -223,8 +200,8 @@ def load_excel(path_like: str):
 
         df = pd.read_excel(path, sheet_name=0, engine="openpyxl")
         df = standardize_columns(df)
+        df = coerce_types(df)
         return df, None
-
     except Exception as e:
         st.error(f"❌ Error loading Excel: {e}")
         return create_sample_data(), "Menggunakan data sample"
@@ -233,16 +210,14 @@ def load_excel(path_like: str):
 def load_geojson(path: str):
     with open(path, "r", encoding="utf-8") as f:
         gj = json.load(f)
-
-    # Tambahkan kec_norm dari field wadmkc (sesuai geojson Dayu)
     for ft in gj.get("features", []):
         props = ft.get("properties", {})
-        wadmkc = props.get("wadmkc", "")  # INI YANG DIPAKAI
+        wadmkc = props.get("wadmkc", "")
         props["kec_norm"] = _norm(wadmkc)
         props["kec_label"] = wadmkc
         ft["properties"] = props
-
     return gj
+
 @st.cache_data
 def load_spbu_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, sep=";", encoding="utf-8-sig")
@@ -254,13 +229,11 @@ def load_spbu_csv(path: str) -> pd.DataFrame:
         "Media BBM": "media_bbm",
     })
 
-    # parse koordinat -> lat/lon
     if "koordinat" in df.columns:
         coords = df["koordinat"].apply(parse_coord)
         df["lat"] = coords.apply(lambda x: x[0])
         df["lon"] = coords.apply(lambda x: x[1])
 
-    # normalisasi list media
     def _split_media(x):
         if pd.isna(x) or str(x).strip() == "":
             return []
@@ -268,7 +241,6 @@ def load_spbu_csv(path: str) -> pd.DataFrame:
 
     df["media_list"] = df["media_bbm"].apply(_split_media) if "media_bbm" in df.columns else [[]]*len(df)
 
-    # rapihin tipe
     for c in ["nama_spbu", "alamat", "kecamatan", "media_bbm"]:
         if c in df.columns:
             df[c] = df[c].fillna("").astype(str)
@@ -279,50 +251,714 @@ def load_spbu_csv(path: str) -> pd.DataFrame:
 
     return df
 
+
+# =========================
+# CHART HELPERS (ALTair)
+# =========================
+def line_chart_alt(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str):
+    """Line chart dengan sumbu X jelas (tahun) + domain Y diperkecil biar tren terlihat."""
+    try:
+        import altair as alt
+        d = df_plot[[x_col, y_col]].dropna().copy()
+        if d.empty:
+            st.info("Tidak ada data untuk grafik.")
+            return
+
+        y_min = float(d[y_col].min())
+        y_max = float(d[y_col].max())
+        if y_min == y_max:
+            y_domain = [y_min - 1, y_max + 1]
+        else:
+            pad = (y_max - y_min) * 0.10
+            y_domain = [y_min - pad, y_max + pad]
+
+        chart = (
+            alt.Chart(d)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X(f"{x_col}:O", title="Tahun", axis=alt.Axis(labelAngle=0)),
+                y=alt.Y(f"{y_col}:Q", title=title, scale=alt.Scale(domain=y_domain)),
+                tooltip=[alt.Tooltip(f"{x_col}:O", title="Tahun"),
+                         alt.Tooltip(f"{y_col}:Q", title=title)]
+            )
+            .properties(height=260)
+        )
+        st.altair_chart(chart, width="stretch")
+    except Exception:
+        # fallback
+        st.line_chart(df_plot.set_index(x_col)[[y_col]])
+
+def bar_chart_alt(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str):
+    try:
+        import altair as alt
+        d = df_plot[[x_col, y_col]].dropna().copy()
+        if d.empty:
+            st.info("Tidak ada data untuk grafik.")
+            return
+        chart = (
+            alt.Chart(d)
+            .mark_bar()
+            .encode(
+                x=alt.X(f"{x_col}:N", title=x_col, sort="-y", axis=alt.Axis(labelAngle=-35)),
+                y=alt.Y(f"{y_col}:Q", title=title),
+                tooltip=[alt.Tooltip(f"{x_col}:N", title=x_col),
+                         alt.Tooltip(f"{y_col}:Q", title=title)]
+            )
+            .properties(height=320)
+        )
+        st.altair_chart(chart, width="stretch")
+    except Exception:
+        st.bar_chart(df_plot.set_index(x_col)[[y_col]])
+
+
+# =========================
+# MAP CLICK -> PICK HELPER
+# =========================
+def pick_from_click(map_state: dict, df_context: pd.DataFrame, lat_col="lat", lon_col="lon",
+                    name_col="nama_pasar", kec_col="kecamatan",
+                    state_prefix="pasar"):
+    """Jika user klik marker, set session_state pilihan (nama + kec) lalu return True."""
+    if not map_state:
+        return False
+
+    clicked = map_state.get("last_object_clicked")
+    if not clicked:
+        return False
+
+    latc = clicked.get("lat")
+    lonc = clicked.get("lng")
+    if latc is None or lonc is None:
+        return False
+
+    if df_context is None or df_context.empty:
+        return False
+    need_cols = {lat_col, lon_col, name_col, kec_col}
+    if not need_cols.issubset(df_context.columns):
+        return False
+
+    tmp = df_context[[lat_col, lon_col, name_col, kec_col]].dropna().copy()
+    if tmp.empty:
+        return False
+
+    d2 = (tmp[lat_col].astype(float) - float(latc))**2 + (tmp[lon_col].astype(float) - float(lonc))**2
+    idx = d2.idxmin()
+
+    # threshold klik agar tidak salah pilih (1e-8 ~ sangat dekat)
+    if float(d2.loc[idx]) > 1e-8:
+        return False
+
+    nm = str(df_context.loc[idx, name_col])
+    kc = str(df_context.loc[idx, kec_col])
+
+    st.session_state[f"{state_prefix}_last_changed"] = "name"
+    st.session_state[f"{state_prefix}_kec_sel"] = kc
+    st.session_state[f"{state_prefix}_name_sel"] = nm
+    return True
+
+
+# =========================
+# DASHBOARD PASAR
+# =========================
 def render_dashboard_pasar():
-    # >>> PASTE SELURUH KODE DASHBOARD PASAR DI SINI <<<
-    # tips: semua key session_state gunakan prefix "pasar_"
-    pass
+    st.title("🏪 Status Tera Ulang Timbangan Pasar – Kabupaten Tangerang")
+    st.caption("Dinas Perindustrian dan Perdagangan • Bidang Kemetrologian")
+
+    df, err = load_excel(FILE_EXCEL)
+    if err:
+        st.warning(f"Peringatan: {err}")
+
+    # geojson batas
+    geo = None
+    try:
+        geo = load_geojson(FILE_GEOJSON)
+    except Exception as e:
+        st.warning(f"⚠️ GeoJSON tidak terbaca: {e}")
+
+    # ===== SIDEBAR FILTER (PASAR) =====
+    with st.sidebar:
+        st.header("Filter Pasar")
+
+        # pilih tahun top-down, default terbaru
+        if "tera_ulang_tahun" in df.columns and df["tera_ulang_tahun"].notna().any():
+            years = sorted(df["tera_ulang_tahun"].dropna().astype(int).unique().tolist())
+            year_options = years[::-1]
+        else:
+            year_options = [datetime.now().year]
+
+        year_pick = st.selectbox("Tahun Tera Ulang", options=year_options, index=0, key="pasar_year_pick")
+
+        # data tahun terpilih -> supaya opsi kec/pasar menyesuaikan tahun tsb
+        df_year = df[df["tera_ulang_tahun"] == int(year_pick)].copy()
+
+        # state (prefix pasar_)
+        if "pasar_last_changed" not in st.session_state:
+            st.session_state["pasar_last_changed"] = "kec"
+        if "pasar_kec_sel" not in st.session_state:
+            st.session_state["pasar_kec_sel"] = "(Semua)"
+        if "pasar_name_sel" not in st.session_state:
+            st.session_state["pasar_name_sel"] = "(Semua)"
+
+        def _set_last(which: str):
+            st.session_state["pasar_last_changed"] = which
+
+        all_kec = uniq_clean(df_year["kecamatan"]) if "kecamatan" in df_year.columns else []
+        all_pasar = uniq_clean(df_year["nama_pasar"]) if "nama_pasar" in df_year.columns else []
+
+        # kalau state lama tidak ada di opsi tahun itu -> reset
+        if st.session_state["pasar_kec_sel"] != "(Semua)" and st.session_state["pasar_kec_sel"] not in (["(Semua)"] + all_kec):
+            st.session_state["pasar_kec_sel"] = "(Semua)"
+        if st.session_state["pasar_name_sel"] != "(Semua)" and st.session_state["pasar_name_sel"] not in (["(Semua)"] + all_pasar):
+            st.session_state["pasar_name_sel"] = "(Semua)"
+
+        # dropdown kecamatan
+        kec_opsi = ["(Semua)"] + all_kec
+        kec = st.selectbox("Kecamatan", kec_opsi, key="pasar_kec_sel", on_change=_set_last, args=("kec",))
+
+        # dropdown pasar (menyesuaikan kec jika terakhir ubah kec)
+        if st.session_state["pasar_last_changed"] == "kec" and st.session_state["pasar_kec_sel"] != "(Semua)":
+            pasar_opsi = ["(Semua)"] + uniq_clean(df_year.loc[df_year["kecamatan"] == st.session_state["pasar_kec_sel"], "nama_pasar"])
+        else:
+            pasar_opsi = ["(Semua)"] + all_pasar
+
+        nama_pasar = st.selectbox("Nama Pasar", pasar_opsi, key="pasar_name_sel", on_change=_set_last, args=("name",))
+
+        # kalau user pilih pasar dulu -> kecamatan ikut
+        if st.session_state["pasar_last_changed"] == "name" and nama_pasar != "(Semua)" and {"nama_pasar","kecamatan"}.issubset(df_year.columns):
+            kec_auto = df_year.loc[df_year["nama_pasar"] == nama_pasar, "kecamatan"].dropna()
+            if not kec_auto.empty:
+                st.session_state["pasar_kec_sel"] = kec_auto.iloc[0]
+
+        # jika user pilih kec dulu tapi pasar tidak cocok -> reset pasar
+        if st.session_state["pasar_last_changed"] == "kec" and kec != "(Semua)" and nama_pasar != "(Semua)":
+            cek = df_year[(df_year["kecamatan"] == kec) & (df_year["nama_pasar"] == nama_pasar)]
+            if cek.empty:
+                st.session_state["pasar_name_sel"] = "(Semua)"
+
+        # final
+        kec = st.session_state["pasar_kec_sel"]
+        nama_pasar = st.session_state["pasar_name_sel"]
+
+        # kartu info pasar
+        if nama_pasar != "(Semua)":
+            info = df_year.loc[df_year["nama_pasar"] == nama_pasar].head(1)
+            if not info.empty:
+                nama = info["nama_pasar"].iat[0]
+                alamat = info["alamat"].iat[0] if "alamat" in info.columns else "Alamat tidak tersedia"
+                kecamatan = info["kecamatan"].iat[0] if "kecamatan" in info.columns else "–"
+                st.markdown("---")
+                st.markdown(
+                    f"""
+                    <div style="
+                        background-color:#f3e8ff;
+                        padding:14px 16px;
+                        border-radius:12px;
+                        border-left:5px solid #8000FF;
+                        box-shadow:0px 1px 4px rgba(0,0,0,0.15);
+                        margin-top:10px;">
+                        <h4 style="margin-bottom:6px; color:#4B0082; font-size:16px;">🏪 {nama}</h4>
+                        <p style="margin:2px 0; font-size:13px; color:#222;">
+                            <b>Kecamatan:</b> {kecamatan}<br>
+                            <b>Alamat:</b> {alamat}
+                        </p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+        # ringkasan timbangan (mengikuti filter tahun/kec/pasar)
+        st.markdown("---")
+        st.subheader("⚖️ Total Timbangan Tera Ulang")
+
+        timb_map = {
+            "Pegas":        ["Timb. Pegas"],
+            "Meja":         ["Timb. Meja"],
+            "Elektronik":   ["Timb. Elektronik"],
+            "Sentisimal":   ["Timb. Sentisimal"],
+            "Bobot Ingsut": ["Timb. Bobot Ingsut"],
+            "Neraca":       ["Neraca"],
+            "Dacin":        ["Dacin"],
+        }
+
+        fdf_sidebar = df_year.copy()
+        if kec != "(Semua)":
+            fdf_sidebar = fdf_sidebar[fdf_sidebar["kecamatan"] == kec]
+        if nama_pasar != "(Semua)":
+            fdf_sidebar = fdf_sidebar[fdf_sidebar["nama_pasar"] == nama_pasar]
+
+        def sum_first_existing(df_src: pd.DataFrame, candidates: list) -> int:
+            for c in candidates:
+                if c in df_src.columns:
+                    return int(pd.to_numeric(df_src[c], errors="coerce").fillna(0).sum())
+            return 0
+
+        totals = {label: sum_first_existing(fdf_sidebar, cands) for label, cands in timb_map.items()}
+        total_uttp = int(pd.to_numeric(fdf_sidebar.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
+
+        for label, val in totals.items():
+            st.markdown(f"**{label}**: {val:,}")
+        st.markdown(f"**Total UTTP (semua jenis):** {total_uttp:,}")
+
+    # ===== FILTER DATA UTAMA =====
+    fdf = df_year.copy()
+    if kec != "(Semua)":
+        fdf = fdf[fdf["kecamatan"] == kec]
+    if nama_pasar != "(Semua)":
+        fdf = fdf[fdf["nama_pasar"] == nama_pasar]
+
+    # ===== KPI =====
+    if kec == "(Semua)" and nama_pasar == "(Semua)":
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Total Kecamatan", clean_str_series(fdf["kecamatan"]).nunique() if "kecamatan" in fdf.columns else 0)
+        with c2:
+            st.metric("Total Seluruh Pasar", clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0)
+        with c3:
+            st.metric("Tahun Terpilih", int(year_pick))
+        with c4:
+            st.metric("Total Timbangan Tera Ulang", int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum()))
+    elif kec != "(Semua)" and nama_pasar == "(Semua)":
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Kecamatan", kec)
+        with c2:
+            st.metric("Total Pasar", clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0)
+        with c3:
+            st.metric("Tahun Terpilih", int(year_pick))
+        with c4:
+            st.metric("Total Timbangan", int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum()))
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Nama Pasar", nama_pasar)
+        with c2:
+            st.metric("Kecamatan", kec)
+        with c3:
+            st.metric("Tahun Terpilih", int(year_pick))
+        with c4:
+            st.metric("Total Timbangan", int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum()))
+
+    # ===== MAP =====
+    st.subheader("🗺️ Peta Lokasi Pasar")
+
+    default_center = [-6.2, 106.55]
+    default_zoom = 10
+
+    coords = None
+    if {"lat","lon"}.issubset(fdf.columns):
+        coords = fdf[["lat","lon"]].dropna()
+
+    center_loc = default_center
+    zoom_start = default_zoom
+
+    if nama_pasar != "(Semua)" and coords is not None and not coords.empty:
+        center_loc = [float(coords.iloc[0]["lat"]), float(coords.iloc[0]["lon"])]
+        zoom_start = 16
+
+    m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, tiles="OpenStreetMap")
+
+    # batas kecamatan (ungu)
+    if geo is not None:
+        tooltip = folium.GeoJsonTooltip(fields=["kec_label"], aliases=["Kecamatan:"])
+        style_fn = lambda x: {"color":"#8000FF","weight":2,"opacity":1.0,"fill":False,"fillOpacity":0}
+        try:
+            folium.GeoJson(geo, name="Batas Kecamatan", style_function=style_fn, tooltip=tooltip).add_to(m)
+        except Exception:
+            pass
+
+    # marker pasar
+    if coords is not None and not coords.empty:
+        cluster = MarkerCluster(name="Pasar", show=True).add_to(m)
+        for _, r in fdf.iterrows():
+            lat = r.get("lat"); lon = r.get("lon")
+            if pd.isna(lat) or pd.isna(lon):
+                continue
+
+            nama = str(r.get("nama_pasar", "Unknown"))
+            alamat = str(r.get("alamat", "-"))
+            tahun = int(r.get("tera_ulang_tahun", 0))
+            jumlah = r.get("jumlah_timbangan_tera_ulang", 0)
+            pedagang = r.get("total_pedagang", 0)
+            jenis = str(r.get("jenis_timbangan", "-"))
+
+            html = f"""
+            <div style='width: 280px; font-family: Arial, sans-serif;'>
+                <h4 style='margin:8px 0; color: #2E86AB;'>{nama}</h4>
+                <div style='font-size: 12px; color:#666; margin-bottom:8px;'>{alamat}</div>
+                <hr style='margin:6px 0'/>
+                <table style='font-size: 12px; width: 100%;'>
+                    <tr><td><b>Tahun</b></td><td style='padding-left:8px'>: {tahun}</td></tr>
+                    <tr><td><b>Total UTTP</b></td><td style='padding-left:8px'>: {jumlah}</td></tr>
+                    <tr><td><b>Total Pedagang</b></td><td style='padding-left:8px'>: {pedagang}</td></tr>
+                    <tr><td><b>Jenis</b></td><td style='padding-left:8px'>: {jenis}</td></tr>
+                </table>
+            </div>
+            """
+
+            col = marker_color(tahun, int(year_pick))
+            folium.CircleMarker(
+                location=[float(lat), float(lon)],
+                radius=9,
+                color=col,
+                fill=True,
+                fill_color=col,
+                fill_opacity=0.7,
+                weight=2,
+                tooltip=folium.Tooltip(nama),
+                popup=folium.Popup(html, max_width=320),
+            ).add_to(cluster)
+
+        # auto-fit kalau belum pilih pasar spesifik
+        if nama_pasar == "(Semua)" and len(coords) > 1:
+            sw = [coords["lat"].min(), coords["lon"].min()]
+            ne = [coords["lat"].max(), coords["lon"].max()]
+            m.fit_bounds([sw, ne], padding=(30, 30))
+    else:
+        st.warning("⚠️ Tidak ada data koordinat valid untuk ditampilkan.")
+
+    folium.LayerControl(collapsed=False).add_to(m)
+    map_state = st_folium(m, height=520, width="stretch", key="pasar_map")
+
+    # klik marker -> pilih pasar + kecamatan otomatis (berdasarkan df_year)
+    if pick_from_click(
+        map_state,
+        df_context=df_year,
+        name_col="nama_pasar",
+        kec_col="kecamatan",
+        state_prefix="pasar"
+    ):
+        st.rerun()
+
+    # ===== GRAFIK (DI BAWAH MAP) =====
+    st.subheader("📊 Grafik Analisis")
+
+    # data agregat per tahun untuk tren
+    df_all = df.copy()
+    df_all = df_all[df_all["tera_ulang_tahun"] > 0]
+
+    if kec == "(Semua)" and nama_pasar == "(Semua)":
+        # Tren kabupaten (tanpa "jumlah kecamatan" agar tidak mengganggu)
+        agg = df_all.groupby("tera_ulang_tahun", as_index=False).agg(
+            jumlah_pasar=("nama_pasar", "nunique"),
+            total_uttp=("jumlah_timbangan_tera_ulang", "sum"),
+            total_pedagang=("total_pedagang", "sum"),
+        )
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("**Tren Jumlah Pasar**")
+            line_chart_alt(agg, "tera_ulang_tahun", "jumlah_pasar", "Jumlah Pasar")
+        with c2:
+            st.markdown("**Tren Total UTTP**")
+            line_chart_alt(agg, "tera_ulang_tahun", "total_uttp", "Total UTTP")
+        with c3:
+            st.markdown("**Tren Total Pedagang**")
+            line_chart_alt(agg, "tera_ulang_tahun", "total_pedagang", "Total Pedagang")
+
+        # Top 10 pasar di tahun terpilih
+        top_df = df_year.copy()
+        if not top_df.empty and "nama_pasar" in top_df.columns:
+            top_pasar = (top_df.groupby("nama_pasar", as_index=False)["jumlah_timbangan_tera_ulang"]
+                         .sum()
+                         .sort_values("jumlah_timbangan_tera_ulang", ascending=False)
+                         .head(10))
+            st.markdown(f"**Top 10 Pasar (UTTP) di tahun {int(year_pick)} – Kabupaten Tangerang**")
+            bar_chart_alt(top_pasar, "nama_pasar", "jumlah_timbangan_tera_ulang", "Total UTTP")
+
+    elif kec != "(Semua)" and nama_pasar == "(Semua)":
+        # Tren kecamatan
+        gdf_kec = df_all[df_all["kecamatan"] == kec].copy()
+        agg = gdf_kec.groupby("tera_ulang_tahun", as_index=False).agg(
+            jumlah_pasar=("nama_pasar", "nunique"),
+            total_uttp=("jumlah_timbangan_tera_ulang", "sum"),
+        )
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown(f"**Tren Jumlah Pasar – Kecamatan {kec}**")
+            line_chart_alt(agg, "tera_ulang_tahun", "jumlah_pasar", "Jumlah Pasar")
+        with c2:
+            st.markdown(f"**Tren Total UTTP – Kecamatan {kec}**")
+            line_chart_alt(agg, "tera_ulang_tahun", "total_uttp", "Total UTTP")
+
+        # Top 10 pasar di kecamatan pada tahun terpilih
+        top_df = df_year[df_year["kecamatan"] == kec].copy()
+        if not top_df.empty:
+            top_pasar = (top_df.groupby("nama_pasar", as_index=False)["jumlah_timbangan_tera_ulang"]
+                         .sum()
+                         .sort_values("jumlah_timbangan_tera_ulang", ascending=False)
+                         .head(10))
+            st.markdown(f"**Top 10 Pasar (UTTP) di tahun {int(year_pick)} – Kecamatan {kec}**")
+            bar_chart_alt(top_pasar, "nama_pasar", "jumlah_timbangan_tera_ulang", "Total UTTP")
+        else:
+            st.info("Tidak ada data top pasar untuk filter ini.")
+
+    else:
+        # Tren pasar terpilih (UTTP & pedagang)
+        gdf_pasar = df_all[df_all["nama_pasar"] == nama_pasar].copy()
+        agg = gdf_pasar.groupby("tera_ulang_tahun", as_index=False).agg(
+            total_uttp=("jumlah_timbangan_tera_ulang", "sum"),
+            total_pedagang=("total_pedagang", "sum"),
+        )
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown(f"**Tren Total UTTP – {nama_pasar}**")
+            line_chart_alt(agg, "tera_ulang_tahun", "total_uttp", "Total UTTP")
+        with c2:
+            st.markdown(f"**Tren Total Pedagang – {nama_pasar}**")
+            line_chart_alt(agg, "tera_ulang_tahun", "total_pedagang", "Total Pedagang")
 
 
+# =========================
+# DASHBOARD SPBU
+# =========================
 def render_dashboard_spbu():
-    # >>> PASTE SELURUH KODE DASHBOARD SPBU DI SINI <<<
-    # tips: semua key session_state gunakan prefix "spbu_"
-    pass
-# 1) IMPORT
-import streamlit as st
-import pandas as pd
-...
+    st.title("⛽ Dashboard SPBU – Kabupaten Tangerang")
+    st.caption("Dinas Perindustrian dan Perdagangan • Bidang Kemetrologian")
 
-st.set_page_config(...)
+    df_spbu = load_spbu_csv(FILE_SPBU)
 
-# 2) MENU (di sidebar, taruh dekat atas)
+    geo = None
+    try:
+        geo = load_geojson(FILE_GEOJSON)
+    except Exception as e:
+        st.warning(f"⚠️ GeoJSON tidak terbaca: {e}")
+
+    # ===== SIDEBAR FILTER SPBU =====
+    with st.sidebar:
+        st.header("Filter SPBU")
+
+        # media filter
+        all_media = sorted({m for lst in df_spbu["media_list"] for m in lst})
+        media_pick = st.multiselect("Media BBM", options=all_media, default=[], key="spbu_media_pick")
+
+        base = df_spbu.copy()
+        if media_pick:
+            media_set = set(media_pick)
+            base = base[base["media_list"].apply(lambda L: any(m in media_set for m in L))]
+
+        # state prefix spbu_
+        if "spbu_last_changed" not in st.session_state:
+            st.session_state["spbu_last_changed"] = "kec"
+        if "spbu_kec_sel" not in st.session_state:
+            st.session_state["spbu_kec_sel"] = "(Semua)"
+        if "spbu_name_sel" not in st.session_state:
+            st.session_state["spbu_name_sel"] = "(Semua)"
+
+        def _set_last(which: str):
+            st.session_state["spbu_last_changed"] = which
+
+        all_kec = uniq_clean(base["kecamatan"]) if "kecamatan" in base.columns else []
+        all_spbu = uniq_clean(base["nama_spbu"]) if "nama_spbu" in base.columns else []
+
+        # reset kalau state lama tidak ada (akibat filter media)
+        if st.session_state["spbu_kec_sel"] != "(Semua)" and st.session_state["spbu_kec_sel"] not in (["(Semua)"] + all_kec):
+            st.session_state["spbu_kec_sel"] = "(Semua)"
+        if st.session_state["spbu_name_sel"] != "(Semua)" and st.session_state["spbu_name_sel"] not in (["(Semua)"] + all_spbu):
+            st.session_state["spbu_name_sel"] = "(Semua)"
+
+        kec_opsi = ["(Semua)"] + all_kec
+        kec = st.selectbox("Kecamatan", kec_opsi, key="spbu_kec_sel", on_change=_set_last, args=("kec",))
+
+        if st.session_state["spbu_last_changed"] == "kec" and st.session_state["spbu_kec_sel"] != "(Semua)":
+            spbu_opsi = ["(Semua)"] + uniq_clean(base.loc[base["kecamatan"] == st.session_state["spbu_kec_sel"], "nama_spbu"])
+        else:
+            spbu_opsi = ["(Semua)"] + all_spbu
+
+        nama_spbu = st.selectbox("Nama SPBU", spbu_opsi, key="spbu_name_sel", on_change=_set_last, args=("name",))
+
+        # kalau pilih spbu dulu -> kec ikut
+        if st.session_state["spbu_last_changed"] == "name" and nama_spbu != "(Semua)" and {"nama_spbu","kecamatan"}.issubset(base.columns):
+            kec_auto = base.loc[base["nama_spbu"] == nama_spbu, "kecamatan"].dropna()
+            if not kec_auto.empty:
+                st.session_state["spbu_kec_sel"] = kec_auto.iloc[0]
+
+        # kalau pilih kec dulu tapi spbu tidak cocok -> reset
+        if st.session_state["spbu_last_changed"] == "kec" and kec != "(Semua)" and nama_spbu != "(Semua)":
+            cek = base[(base["kecamatan"] == kec) & (base["nama_spbu"] == nama_spbu)]
+            if cek.empty:
+                st.session_state["spbu_name_sel"] = "(Semua)"
+
+        kec = st.session_state["spbu_kec_sel"]
+        nama_spbu = st.session_state["spbu_name_sel"]
+
+        # kartu info spbu
+        if nama_spbu != "(Semua)":
+            info = base.loc[base["nama_spbu"] == nama_spbu].head(1)
+            if not info.empty:
+                almt = info["alamat"].iat[0]
+                media_txt = info["media_bbm"].iat[0] if "media_bbm" in info.columns else "-"
+                st.markdown("---")
+                st.markdown(
+                    f"""
+                    <div style="
+                        background-color:#f3e8ff;
+                        padding:14px 16px;
+                        border-radius:12px;
+                        border-left:5px solid #8000FF;
+                        box-shadow:0px 1px 4px rgba(0,0,0,0.15);
+                        margin-top:10px;">
+                        <h4 style="margin-bottom:6px; color:#4B0082; font-size:16px;">⛽ {nama_spbu}</h4>
+                        <p style="margin:2px 0; font-size:13px; color:#222;">
+                            <b>Kecamatan:</b> {kec}<br>
+                            <b>Alamat:</b> {almt}<br>
+                            <b>Media BBM:</b> {media_txt}
+                        </p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+    # ===== FILTER UTAMA SPBU =====
+    fdf = base.copy()
+    if kec != "(Semua)":
+        fdf = fdf[fdf["kecamatan"] == kec]
+    if nama_spbu != "(Semua)":
+        fdf = fdf[fdf["nama_spbu"] == nama_spbu]
+
+    # ===== KPI SPBU =====
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Total Kecamatan", clean_str_series(fdf["kecamatan"]).nunique() if "kecamatan" in fdf.columns else 0)
+    with c2:
+        st.metric("Total SPBU", clean_str_series(fdf["nama_spbu"]).nunique() if "nama_spbu" in fdf.columns else 0)
+    with c3:
+        media_unik = sorted({m for lst in fdf["media_list"] for m in lst})
+        st.metric("Varian Media BBM", len(media_unik))
+
+    # ===== MAP SPBU =====
+    st.subheader("🗺️ Peta Lokasi SPBU")
+
+    default_center = [-6.2, 106.55]
+    default_zoom = 10
+
+    coords = None
+    if {"lat","lon"}.issubset(fdf.columns):
+        coords = fdf[["lat","lon"]].dropna()
+
+    center_loc = default_center
+    zoom_start = default_zoom
+    if nama_spbu != "(Semua)" and coords is not None and not coords.empty:
+        center_loc = [float(coords.iloc[0]["lat"]), float(coords.iloc[0]["lon"])]
+        zoom_start = 16
+
+    m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, tiles="OpenStreetMap")
+
+    if geo is not None:
+        tooltip = folium.GeoJsonTooltip(fields=["kec_label"], aliases=["Kecamatan:"])
+        style_fn = lambda x: {"color":"#8000FF","weight":2,"opacity":1.0,"fill":False,"fillOpacity":0}
+        try:
+            folium.GeoJson(geo, name="Batas Kecamatan", style_function=style_fn, tooltip=tooltip).add_to(m)
+        except Exception:
+            pass
+
+    if coords is not None and not coords.empty:
+        cluster = MarkerCluster(name="SPBU", show=True).add_to(m)
+        for _, r in fdf.iterrows():
+            lat = r.get("lat"); lon = r.get("lon")
+            if pd.isna(lat) or pd.isna(lon):
+                continue
+            nm = r.get("nama_spbu", "-")
+            almt = r.get("alamat", "-")
+            media_txt = r.get("media_bbm", "-")
+
+            html = f"""
+            <div style='width: 280px; font-family: Arial, sans-serif;'>
+                <h4 style='margin:8px 0; color: #2E86AB;'>{nm}</h4>
+                <div style='font-size: 12px; color:#666; margin-bottom:8px;'>{almt}</div>
+                <hr style='margin:6px 0'/>
+                <table style='font-size: 12px; width: 100%;'>
+                    <tr><td><b>Kecamatan</b></td><td style='padding-left:8px'>: {r.get("kecamatan","-")}</td></tr>
+                    <tr><td><b>Media BBM</b></td><td style='padding-left:8px'>: {media_txt}</td></tr>
+                </table>
+            </div>
+            """
+
+            folium.CircleMarker(
+                location=[float(lat), float(lon)],
+                radius=9,
+                color="#8000FF",
+                fill=True,
+                fill_color="#8000FF",
+                fill_opacity=0.65,
+                weight=2,
+                tooltip=folium.Tooltip(str(nm)),
+                popup=folium.Popup(html, max_width=320),
+            ).add_to(cluster)
+
+        if nama_spbu == "(Semua)" and len(coords) > 1:
+            sw = [coords["lat"].min(), coords["lon"].min()]
+            ne = [coords["lat"].max(), coords["lon"].max()]
+            m.fit_bounds([sw, ne], padding=(30, 30))
+    else:
+        st.warning("⚠️ Tidak ada koordinat valid untuk ditampilkan.")
+
+    folium.LayerControl(collapsed=False).add_to(m)
+    map_state = st_folium(m, height=520, width="stretch", key="spbu_map")
+
+    # klik marker -> pilih spbu + kecamatan otomatis (pakai base supaya match filter media)
+    if pick_from_click(
+        map_state,
+        df_context=base,
+        name_col="nama_spbu",
+        kec_col="kecamatan",
+        state_prefix="spbu"
+    ):
+        st.rerun()
+
+    # ===== GRAFIK SPBU =====
+    st.subheader("📊 Analisis SPBU")
+
+    if nama_spbu != "(Semua)" and not fdf.empty:
+        media = fdf.iloc[0]["media_list"]
+        if media:
+            dd = pd.DataFrame({"Media BBM": media, "Jumlah": [1]*len(media)})
+            st.markdown("**Media BBM pada SPBU terpilih**")
+            bar_chart_alt(dd, "Media BBM", "Jumlah", "Jumlah")
+        else:
+            st.info("SPBU ini belum punya data Media BBM.")
+    else:
+        c1, c2 = st.columns(2)
+
+        with c1:
+            if not fdf.empty:
+                by_kec = fdf.groupby("kecamatan").size().sort_values(ascending=False).head(15).reset_index()
+                by_kec.columns = ["kecamatan", "jumlah_spbu"]
+                st.markdown("**Top Kecamatan berdasarkan jumlah SPBU (sesuai filter)**")
+                bar_chart_alt(by_kec, "kecamatan", "jumlah_spbu", "Jumlah SPBU")
+
+        with c2:
+            if not fdf.empty:
+                rows = []
+                for _, r in fdf.iterrows():
+                    for m1 in r["media_list"]:
+                        rows.append(m1)
+                if rows:
+                    by_media = pd.Series(rows).value_counts().head(10).reset_index()
+                    by_media.columns = ["media", "jumlah_spbu"]
+                    st.markdown("**Top Media BBM (jumlah SPBU yang menyediakan)**")
+                    bar_chart_alt(by_media, "media", "jumlah_spbu", "Jumlah SPBU")
+
+
+# =========================
+# MENU (SIDEBAR) + ROUTING
+# =========================
 with st.sidebar:
     st.markdown("## 📌 Pilih Dashboard")
-    page = st.radio("Menu", ["🏪 Pasar (Tera Ulang)", "⛽ SPBU"], index=0, label_visibility="collapsed")
+    page = st.radio(
+        "Menu",
+        ["🏪 Pasar (Tera Ulang)", "⛽ SPBU"],
+        index=0,
+        label_visibility="collapsed",
+        key="page_menu"
+    )
     st.markdown("---")
 
-# 3) HELPER FUNCTIONS
-def parse_coord(...):
-    ...
-
-def uniq_clean(...):
-    ...
-
-# 4) DASHBOARD FUNCTIONS
-def render_dashboard_pasar():
-    # seluruh kode dashboard pasar kamu dipindah ke sini
-    ...
-
-def render_dashboard_spbu():
-    # seluruh kode dashboard spbu kamu dipindah ke sini
-    ...
-
-# 5) ✅ POIN 3 ADA DI SINI (PALING BAWAH FILE)
 if page == "🏪 Pasar (Tera Ulang)":
     render_dashboard_pasar()
 else:
     render_dashboard_spbu()
+
 
 
 # =========================
