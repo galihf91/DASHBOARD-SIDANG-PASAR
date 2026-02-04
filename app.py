@@ -516,216 +516,360 @@ def render_dashboard_pasar():
             st.markdown(f"**{label}**: {val:,}")
         st.markdown(f"**Total UTTP (semua jenis):** {total_uttp:,}")
 
-    # ===== FILTER DATA UTAMA =====
-    fdf = df_year.copy()
-    if kec != "(Semua)":
-        fdf = fdf[fdf["kecamatan"] == kec]
-    if nama_pasar != "(Semua)":
-        fdf = fdf[fdf["nama_pasar"] == nama_pasar]
+# =========================
+# FILTER DATA (UTAMA)
+# =========================
+fdf = df.copy()
 
-    # ===== KPI =====
-    if kec == "(Semua)" and nama_pasar == "(Semua)":
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.metric("Total Kecamatan", clean_str_series(fdf["kecamatan"]).nunique() if "kecamatan" in fdf.columns else 0)
-        with c2:
-            st.metric("Total Seluruh Pasar", clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0)
-        with c3:
-            st.metric("Tahun Terpilih", int(year_pick))
-        with c4:
-            st.metric("Total Timbangan Tera Ulang", int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum()))
-    elif kec != "(Semua)" and nama_pasar == "(Semua)":
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.metric("Kecamatan", kec)
-        with c2:
-            st.metric("Total Pasar", clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0)
-        with c3:
-            st.metric("Tahun Terpilih", int(year_pick))
-        with c4:
-            st.metric("Total Timbangan", int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum()))
-    else:
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.metric("Nama Pasar", nama_pasar)
-        with c2:
-            st.metric("Kecamatan", kec)
-        with c3:
-            st.metric("Tahun Terpilih", int(year_pick))
-        with c4:
-            st.metric("Total Timbangan", int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum()))
+if "tera_ulang_tahun" in fdf.columns:
+    fdf = fdf[fdf["tera_ulang_tahun"] == int(year_pick)]
 
-    # ===== MAP =====
-    st.subheader("🗺️ Peta Lokasi Pasar")
+if "kecamatan" in fdf.columns and kec != "(Semua)":
+    fdf = fdf[fdf["kecamatan"] == kec]
 
-    default_center = [-6.2, 106.55]
-    default_zoom = 10
+if "nama_pasar" in fdf.columns and nama_pasar != "(Semua)":
+    fdf = fdf[fdf["nama_pasar"] == nama_pasar]
 
-    coords = None
-    if {"lat","lon"}.issubset(fdf.columns):
-        coords = fdf[["lat","lon"]].dropna()
 
-    center_loc = default_center
-    zoom_start = default_zoom
+# =========================
+# KPIs (DINAMIS)
+# =========================
+if kec == "(Semua)" and nama_pasar == "(Semua)":
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        total_kec = clean_str_series(fdf["kecamatan"]).nunique() if "kecamatan" in fdf.columns else 0
+        st.metric("Total Kecamatan", total_kec)
+    with c2:
+        total_pasar = clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0
+        st.metric("Total Seluruh Pasar", total_pasar)
+    with c3:
+        st.metric("Tahun", int(year_pick))
+    with c4:
+        total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
+        st.metric("Total Timbangan", total_timb)
 
-    if nama_pasar != "(Semua)" and coords is not None and not coords.empty:
-        center_loc = [float(coords.iloc[0]["lat"]), float(coords.iloc[0]["lon"])]
-        zoom_start = 16
+elif kec != "(Semua)" and nama_pasar == "(Semua)":
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Kecamatan", kec)
+    with c2:
+        total_pasar_kec = clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0
+        st.metric("Total Pasar", total_pasar_kec)
+    with c3:
+        st.metric("Tahun", int(year_pick))
+    with c4:
+        total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
+        st.metric("Total Timbangan", total_timb)
 
-    m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, tiles="OpenStreetMap")
+else:
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Nama Pasar", nama_pasar if nama_pasar != "(Semua)" else "—")
+    with c2:
+        kec_auto = (
+            fdf["kecamatan"].dropna().iloc[0]
+            if ("kecamatan" in fdf.columns and not fdf.empty)
+            else (kec if kec != "(Semua)" else "—")
+        )
+        st.metric("Kecamatan", kec_auto)
+    with c3:
+        st.metric("Tahun", int(year_pick))
+    with c4:
+        total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
+        st.metric("Total Timbangan", total_timb)
 
-    # batas kecamatan (ungu)
-    if geo is not None:
-        tooltip = folium.GeoJsonTooltip(fields=["kec_label"], aliases=["Kecamatan:"])
-        style_fn = lambda x: {"color":"#8000FF","weight":2,"opacity":1.0,"fill":False,"fillOpacity":0}
+
+# =========================
+# MAP (PANGGIL SEKALI SAJA)
+# =========================
+st.subheader("🗺️ Peta Lokasi Pasar")
+
+default_center = [-6.2, 106.55]
+default_zoom = 10
+
+has_coords = {"lat", "lon"}.issubset(fdf.columns)
+coords = None
+if has_coords:
+    try:
+        coords = fdf[["lat", "lon"]].astype(float).dropna()
+    except Exception as e:
+        st.warning(f"Error processing coordinates: {e}")
+        coords = None
+
+center_loc = default_center
+zoom_start = default_zoom
+
+if "nama_pasar" in fdf.columns and nama_pasar != "(Semua)" and coords is not None and not coords.empty:
+    row_sel = fdf[fdf["nama_pasar"] == nama_pasar].head(1)
+    if not row_sel.empty:
         try:
-            folium.GeoJson(geo, name="Batas Kecamatan", style_function=style_fn, tooltip=tooltip).add_to(m)
+            lat0 = float(row_sel["lat"].iloc[0])
+            lon0 = float(row_sel["lon"].iloc[0])
+            if pd.notna(lat0) and pd.notna(lon0):
+                center_loc = [lat0, lon0]
+                zoom_start = 16
         except Exception:
             pass
+elif coords is not None and len(coords) == 1:
+    center_loc = [coords.iloc[0]["lat"], coords.iloc[0]["lon"]]
+    zoom_start = 14
 
-    # marker pasar
-    if coords is not None and not coords.empty:
-        cluster = MarkerCluster(name="Pasar", show=True).add_to(m)
-        for _, r in fdf.iterrows():
-            lat = r.get("lat"); lon = r.get("lon")
-            if pd.isna(lat) or pd.isna(lon):
-                continue
+# tiles disembunyikan dari LayerControl (tetap tampil)
+m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, tiles=None)
+folium.TileLayer("OpenStreetMap", control=False).add_to(m)
 
-            nama = str(r.get("nama_pasar", "Unknown"))
-            alamat = str(r.get("alamat", "-"))
-            tahun = int(r.get("tera_ulang_tahun", 0))
-            jumlah = r.get("jumlah_timbangan_tera_ulang", 0)
-            pedagang = r.get("total_pedagang", 0)
-            jenis = str(r.get("jenis_timbangan", "-"))
+# Pane agar batas bisa di atas marker
+from folium.map import CustomPane
+m.add_child(CustomPane("batas-top", z_index=650))
 
-            html = f"""
-            <div style='width: 280px; font-family: Arial, sans-serif;'>
-                <h4 style='margin:8px 0; color: #2E86AB;'>{nama}</h4>
-                <div style='font-size: 12px; color:#666; margin-bottom:8px;'>{alamat}</div>
-                <hr style='margin:6px 0'/>
-                <table style='font-size: 12px; width: 100%;'>
-                    <tr><td><b>Tahun</b></td><td style='padding-left:8px'>: {tahun}</td></tr>
-                    <tr><td><b>Total UTTP</b></td><td style='padding-left:8px'>: {jumlah}</td></tr>
-                    <tr><td><b>Total Pedagang</b></td><td style='padding-left:8px'>: {pedagang}</td></tr>
-                    <tr><td><b>Jenis</b></td><td style='padding-left:8px'>: {jenis}</td></tr>
-                </table>
-            </div>
-            """
+# Load geojson (kalau ada)
+geo = None
+try:
+    geo = load_geojson(FILE_GEOJSON)
+except Exception as e:
+    st.warning(f"⚠️ GeoJSON tidak terbaca: {e}")
 
-            col = marker_color(tahun, int(year_pick))
-            folium.CircleMarker(
-                location=[float(lat), float(lon)],
-                radius=9,
-                color=col,
-                fill=True,
-                fill_color=col,
-                fill_opacity=0.7,
-                weight=2,
-                tooltip=folium.Tooltip(nama),
-                popup=folium.Popup(html, max_width=320),
-            ).add_to(cluster)
+if geo is not None:
+    tooltip = folium.GeoJsonTooltip(fields=["kec_label"], aliases=["Kecamatan:"])
+    style_fn = lambda x: {"color": "#8000FF", "weight": 2, "opacity": 1.0, "fill": False, "fillOpacity": 0}
+    try:
+        folium.GeoJson(
+            geo,
+            name="Batas Kecamatan",
+            pane="batas-top",
+            style_function=style_fn,
+            tooltip=tooltip,
+        ).add_to(m)
+    except TypeError:
+        gj_layer = folium.GeoJson(geo, name="Batas Kecamatan", style_function=style_fn, tooltip=tooltip)
+        try:
+            gj_layer.options["pane"] = "batas-top"
+        except Exception:
+            pass
+        gj_layer.add_to(m)
 
-        # auto-fit kalau belum pilih pasar spesifik
-        if nama_pasar == "(Semua)" and len(coords) > 1:
+# Marker pasar
+if has_coords and coords is not None and not coords.empty:
+    cluster = MarkerCluster(name="Pasar", show=True).add_to(m)
+
+    for _, r in fdf.iterrows():
+        try:
+            lat = float(r.get("lat", float("nan")))
+            lon = float(r.get("lon", float("nan")))
+        except Exception:
+            lat, lon = float("nan"), float("nan")
+
+        if pd.isna(lat) or pd.isna(lon):
+            continue
+
+        nama = str(r.get("nama_pasar", "Unknown"))
+        alamat = str(r.get("alamat", "Tidak ada alamat"))
+        tahun = r.get("tera_ulang_tahun", None)
+        jumlah = r.get("jumlah_timbangan_tera_ulang", None)
+        jenis = str(r.get("jenis_timbangan", "Tidak ada data"))
+        pedagang = r.get("total_pedagang", None)
+
+        html = f"""
+        <div style='width: 280px; font-family: Arial, sans-serif;'>
+            <h4 style='margin:8px 0; color: #2E86AB;'>{nama}</h4>
+            <div style='font-size: 12px; color:#666; margin-bottom:8px;'>{alamat}</div>
+            <hr style='margin:6px 0'/>
+            <table style='font-size: 12px; width: 100%;'>
+                <tr><td><b>Tera Ulang</b></td><td style='padding-left:8px'>: {tahun if pd.notna(tahun) else 'Tidak ada data'}</td></tr>
+                <tr><td><b>Total UTTP</b></td><td style='padding-left:8px'>: {jumlah if pd.notna(jumlah) else 'Tidak ada data'}</td></tr>
+                <tr><td><b>Total Pedagang</b></td><td style='padding-left:8px'>: {int(pedagang) if pd.notna(pedagang) else 'Tidak ada data'}</td></tr>
+                <tr><td><b>Jenis Timbangan</b></td><td style='padding-left:8px'>: {jenis}</td></tr>
+            </table>
+        </div>
+        """
+
+        tooltip_text = f"{nama} - {tahun if pd.notna(tahun) else 'Tahun tidak diketahui'}"
+        popup = folium.Popup(html, max_width=320)
+
+        try:
+            y = int(tahun) if pd.notna(tahun) else None
+        except Exception:
+            y = None
+
+        col = marker_color(y, int(year_pick))
+
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=10,
+            color=col,
+            fill=True,
+            fill_color=col,
+            fill_opacity=0.7,
+            weight=2,
+            tooltip=folium.Tooltip(tooltip_text),
+            popup=popup,
+        ).add_to(cluster)
+
+    if not ("nama_pasar" in fdf.columns and nama_pasar != "(Semua)") and len(coords) > 1:
+        try:
             sw = [coords["lat"].min(), coords["lon"].min()]
             ne = [coords["lat"].max(), coords["lon"].max()]
             m.fit_bounds([sw, ne], padding=(30, 30))
-    else:
-        st.warning("⚠️ Tidak ada data koordinat valid untuk ditampilkan.")
+        except Exception as e:
+            st.warning(f"Tidak bisa auto-fit peta: {e}")
+else:
+    st.warning("⚠️ Tidak ada data koordinat yang valid untuk ditampilkan di peta")
 
-    folium.LayerControl(collapsed=False).add_to(m)
-    map_state = st_folium(m, height=520, width="stretch", key="pasar_map")
+folium.LayerControl(collapsed=False).add_to(m)
 
-    # klik marker -> pilih pasar + kecamatan otomatis (berdasarkan df_year)
-    if pick_from_click(
-        map_state,
-        df_context=df_year,
-        name_col="nama_pasar",
-        kec_col="kecamatan",
-        state_prefix="pasar"
-    ):
-        st.rerun()
+# >>> PANGGIL st_folium SEKALI, sekalian ambil map_state
+map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
 
-    # ===== GRAFIK (DI BAWAH MAP) =====
-    st.subheader("📊 Grafik Analisis")
 
-    # data agregat per tahun untuk tren
-    df_all = df.copy()
-    df_all = df_all[df_all["tera_ulang_tahun"] > 0]
+# =========================
+# HANDLE KLIK MARKER -> dropdown ikut pasar yang diklik
+# =========================
+def _pick_pasar_from_click(map_state: dict, df_context: pd.DataFrame) -> bool:
+    if not map_state:
+        return False
 
+    clicked = map_state.get("last_object_clicked")
+    if not clicked:
+        return False
+
+    latc = clicked.get("lat")
+    lonc = clicked.get("lng")
+    if latc is None or lonc is None:
+        return False
+
+    if df_context is None or df_context.empty:
+        return False
+    if not {"lat", "lon", "nama_pasar", "kecamatan"}.issubset(df_context.columns):
+        return False
+
+    tmp = df_context[["lat", "lon", "nama_pasar", "kecamatan"]].dropna().copy()
+    if tmp.empty:
+        return False
+
+    d2 = (tmp["lat"].astype(float) - float(latc)) ** 2 + (tmp["lon"].astype(float) - float(lonc)) ** 2
+    idx = d2.idxmin()
+
+    # threshold agar tidak salah pilih (klik jauh dari marker)
+    if float(d2.loc[idx]) > 1e-8:
+        return False
+
+    pasar_clicked = str(df_context.loc[idx, "nama_pasar"])
+    kec_clicked = str(df_context.loc[idx, "kecamatan"])
+
+    st.session_state["pasar_sel"] = pasar_clicked
+    st.session_state["kec_sel"] = kec_clicked
+    return True
+
+if _pick_pasar_from_click(map_state, fdf):
+    st.rerun()
+
+
+# =========================
+# GRAFIK (DI BAWAH MAP)
+# =========================
+st.subheader("📈 Grafik (Tahun ke Tahun)")
+
+gdf = df.copy()
+if "kecamatan" in gdf.columns and kec != "(Semua)":
+    gdf = gdf[gdf["kecamatan"] == kec]
+if "nama_pasar" in gdf.columns and nama_pasar != "(Semua)":
+    gdf = gdf[gdf["nama_pasar"] == nama_pasar]
+
+if "tera_ulang_tahun" in gdf.columns:
+    gdf["tera_ulang_tahun"] = pd.to_numeric(gdf["tera_ulang_tahun"], errors="coerce")
+    gdf = gdf.dropna(subset=["tera_ulang_tahun"])
+    gdf["tera_ulang_tahun"] = gdf["tera_ulang_tahun"].astype(int)
+
+agg = gdf.groupby("tera_ulang_tahun", as_index=False).agg(
+    jumlah_pasar=("nama_pasar", "nunique") if "nama_pasar" in gdf.columns else ("tera_ulang_tahun", "size"),
+    total_uttp=("jumlah_timbangan_tera_ulang", "sum") if "jumlah_timbangan_tera_ulang" in gdf.columns else ("tera_ulang_tahun", "size"),
+    total_pedagang=("total_pedagang", "sum") if "total_pedagang" in gdf.columns else ("tera_ulang_tahun", "size"),
+).sort_values("tera_ulang_tahun")
+
+if agg.empty:
+    st.info("Tidak ada data untuk grafik (cek filter).")
+else:
+    agg_show = agg.copy()
+    agg_show["Tahun"] = agg_show["tera_ulang_tahun"].astype(int).astype(str)
+
+    # LEVEL 1
     if kec == "(Semua)" and nama_pasar == "(Semua)":
-        # Tren kabupaten (tanpa "jumlah kecamatan" agar tidak mengganggu)
-        agg = df_all.groupby("tera_ulang_tahun", as_index=False).agg(
-            jumlah_pasar=("nama_pasar", "nunique"),
-            total_uttp=("jumlah_timbangan_tera_ulang", "sum"),
-            total_pedagang=("total_pedagang", "sum"),
-        )
-
+        st.caption("Menampilkan tren seluruh kabupaten per tahun.")
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown("**Tren Jumlah Pasar**")
-            line_chart_alt(agg, "tera_ulang_tahun", "jumlah_pasar", "Jumlah Pasar")
+            line_chart_tight_y(agg_show, "Tahun", "jumlah_pasar", "Jumlah Pasar", pad_ratio=0.05)
         with c2:
             st.markdown("**Tren Total UTTP**")
-            line_chart_alt(agg, "tera_ulang_tahun", "total_uttp", "Total UTTP")
+            line_chart_tight_y(agg_show, "Tahun", "total_uttp", "Total UTTP", pad_ratio=0.05)
         with c3:
             st.markdown("**Tren Total Pedagang**")
-            line_chart_alt(agg, "tera_ulang_tahun", "total_pedagang", "Total Pedagang")
+            line_chart_tight_y(agg_show, "Tahun", "total_pedagang", "Total Pedagang", pad_ratio=0.05)
 
-        # Top 10 pasar di tahun terpilih
-        top_df = df_year.copy()
-        if not top_df.empty and "nama_pasar" in top_df.columns:
-            top_pasar = (top_df.groupby("nama_pasar", as_index=False)["jumlah_timbangan_tera_ulang"]
-                         .sum()
-                         .sort_values("jumlah_timbangan_tera_ulang", ascending=False)
-                         .head(10))
-            st.markdown(f"**Top 10 Pasar (UTTP) di tahun {int(year_pick)} – Kabupaten Tangerang**")
-            bar_chart_alt(top_pasar, "nama_pasar", "jumlah_timbangan_tera_ulang", "Total UTTP")
-
+    # LEVEL 2
     elif kec != "(Semua)" and nama_pasar == "(Semua)":
-        # Tren kecamatan
-        gdf_kec = df_all[df_all["kecamatan"] == kec].copy()
-        agg = gdf_kec.groupby("tera_ulang_tahun", as_index=False).agg(
-            jumlah_pasar=("nama_pasar", "nunique"),
-            total_uttp=("jumlah_timbangan_tera_ulang", "sum"),
-        )
-
+        st.caption(f"Menampilkan tren Kecamatan **{kec}** per tahun.")
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown(f"**Tren Jumlah Pasar – Kecamatan {kec}**")
-            line_chart_alt(agg, "tera_ulang_tahun", "jumlah_pasar", "Jumlah Pasar")
+            st.markdown("**Tren Jumlah Pasar**")
+            line_chart_tight_y(agg_show, "Tahun", "jumlah_pasar", "Jumlah Pasar", pad_ratio=0.05)
         with c2:
-            st.markdown(f"**Tren Total UTTP – Kecamatan {kec}**")
-            line_chart_alt(agg, "tera_ulang_tahun", "total_uttp", "Total UTTP")
+            st.markdown("**Tren Total UTTP**")
+            line_chart_tight_y(agg_show, "Tahun", "total_uttp", "Total UTTP", pad_ratio=0.05)
 
-        # Top 10 pasar di kecamatan pada tahun terpilih
-        top_df = df_year[df_year["kecamatan"] == kec].copy()
-        if not top_df.empty:
-            top_pasar = (top_df.groupby("nama_pasar", as_index=False)["jumlah_timbangan_tera_ulang"]
-                         .sum()
-                         .sort_values("jumlah_timbangan_tera_ulang", ascending=False)
-                         .head(10))
-            st.markdown(f"**Top 10 Pasar (UTTP) di tahun {int(year_pick)} – Kecamatan {kec}**")
-            bar_chart_alt(top_pasar, "nama_pasar", "jumlah_timbangan_tera_ulang", "Total UTTP")
-        else:
-            st.info("Tidak ada data top pasar untuk filter ini.")
+        # Top 10 pasar pada tahun terpilih
+        if {"nama_pasar", "tera_ulang_tahun", "jumlah_timbangan_tera_ulang", "kecamatan"}.issubset(df.columns):
+            top_df = df.copy()
+            top_df["tera_ulang_tahun"] = pd.to_numeric(top_df["tera_ulang_tahun"], errors="coerce")
+            top_df = top_df.dropna(subset=["tera_ulang_tahun"])
+            top_df["tera_ulang_tahun"] = top_df["tera_ulang_tahun"].astype(int)
+            top_df = top_df[(top_df["tera_ulang_tahun"] == int(year_pick)) & (top_df["kecamatan"] == kec)]
 
+            if not top_df.empty:
+                top_pasar = (
+                    top_df.groupby("nama_pasar", as_index=False)["jumlah_timbangan_tera_ulang"]
+                    .sum()
+                    .sort_values("jumlah_timbangan_tera_ulang", ascending=False)
+                    .head(10)
+                )
+                st.markdown(f"**Top 10 Pasar (UTTP) di tahun {int(year_pick)} – Kecamatan {kec}**")
+                st.bar_chart(top_pasar.set_index("nama_pasar")[["jumlah_timbangan_tera_ulang"]])
+
+    # LEVEL 3 (pasar dipilih)
     else:
-        # Tren pasar terpilih (UTTP & pedagang)
-        gdf_pasar = df_all[df_all["nama_pasar"] == nama_pasar].copy()
-        agg = gdf_pasar.groupby("tera_ulang_tahun", as_index=False).agg(
-            total_uttp=("jumlah_timbangan_tera_ulang", "sum"),
-            total_pedagang=("total_pedagang", "sum"),
-        )
-
+        st.caption(f"Menampilkan tren Pasar **{nama_pasar}** per tahun.")
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown(f"**Tren Total UTTP – {nama_pasar}**")
-            line_chart_alt(agg, "tera_ulang_tahun", "total_uttp", "Total UTTP")
+            st.markdown("**Tren Total UTTP**")
+            line_chart_tight_y(agg_show, "Tahun", "total_uttp", "Total UTTP", pad_ratio=0.05)
         with c2:
-            st.markdown(f"**Tren Total Pedagang – {nama_pasar}**")
-            line_chart_alt(agg, "tera_ulang_tahun", "total_pedagang", "Total Pedagang")
+            st.markdown("**Tren Total Pedagang**")
+            line_chart_tight_y(agg_show, "Tahun", "total_pedagang", "Total Pedagang", pad_ratio=0.05)
 
+        # Komposisi jenis timbangan per tahun (stacked)
+        timb_cols = [c for c in [
+            "Timb. Pegas","Timb. Meja","Timb. Elektronik","Timb. Sentisimal",
+            "Timb. Bobot Ingsut","Neraca","Dacin"
+        ] if c in gdf.columns]
+
+        if timb_cols:
+            import altair as alt
+            g_year = gdf.groupby("tera_ulang_tahun", as_index=False)[timb_cols].sum()
+            m2 = g_year.melt("tera_ulang_tahun", var_name="Jenis", value_name="Jumlah")
+
+            st.markdown("**Komposisi Jenis Timbangan per Tahun**")
+            chart = (
+                alt.Chart(m2)
+                .mark_bar()
+                .encode(
+                    x=alt.X("tera_ulang_tahun:O", title="Tahun"),
+                    y=alt.Y("Jumlah:Q", title="Jumlah"),
+                    color="Jenis:N",
+                    tooltip=["tera_ulang_tahun:O", "Jenis:N", "Jumlah:Q"],
+                )
+                .properties(height=320)
+            )
+            st.altair_chart(chart, use_container_width=True)
 
 # =========================
 # DASHBOARD SPBU
