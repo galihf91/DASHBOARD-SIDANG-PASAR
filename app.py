@@ -706,6 +706,61 @@ st_folium(m, height=500, use_container_width=True)
     #] if c in fdf.columns]
     #st.dataframe(fdf[show_cols], use_container_width=True)
 # =========================
+# Tampilkan peta
+map_state = st_folium(m, height=500, width="stretch", key="map")
+
+# =========================
+# HANDLE KLIK MARKER -> pilih pasar + kecamatan otomatis
+# =========================
+def _pick_pasar_from_click(map_state: dict, df_context: pd.DataFrame) -> bool:
+    """
+    Return True kalau berhasil set pilihan pasar+kecamatan dari klik map.
+    df_context = dataframe yang dipakai untuk menggambar marker (mis. fdf pada tahun terpilih)
+    """
+    if not map_state:
+        return False
+
+    clicked = map_state.get("last_object_clicked")
+    if not clicked:
+        return False
+
+    latc = clicked.get("lat")
+    lonc = clicked.get("lng")
+    if latc is None or lonc is None:
+        return False
+
+    if df_context is None or df_context.empty or not {'lat','lon','nama_pasar','kecamatan'}.issubset(df_context.columns):
+        return False
+
+    # cari baris terdekat (klik marker -> koordinat sama/terdekat)
+    tmp = df_context[['lat','lon','nama_pasar','kecamatan']].dropna().copy()
+    if tmp.empty:
+        return False
+
+    # jarak kuadrat (lebih cepat)
+    d2 = (tmp['lat'].astype(float) - float(latc))**2 + (tmp['lon'].astype(float) - float(lonc))**2
+    idx = d2.idxmin()
+
+    # threshold biar tidak salah pilih (0.0001 derajat ~ 11 m)
+    if float(d2.loc[idx]) > 1e-8:
+        return False
+
+    pasar_clicked = str(df_context.loc[idx, 'nama_pasar'])
+    kec_clicked   = str(df_context.loc[idx, 'kecamatan'])
+
+    # set state dropdown
+    st.session_state["last_changed"] = "pasar"
+    st.session_state["pasar_sel"] = pasar_clicked
+    st.session_state["kec_sel"] = kec_clicked
+
+    return True
+
+# df untuk konteks klik = dataset marker yang sedang ditampilkan (umumnya fdf pada tahun terpilih)
+# Kalau map kamu pakai fdf (yang sudah filter year_pick + kec/pasar), pakai fdf.
+changed = _pick_pasar_from_click(map_state, fdf)
+
+if changed:
+    st.rerun()
 
 import altair as alt
 
