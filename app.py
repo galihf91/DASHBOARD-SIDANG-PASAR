@@ -760,25 +760,25 @@ def _pick_pasar_from_click(map_state: dict, df_context: pd.DataFrame) -> bool:
     st.session_state["kec_sel"] = kec_clicked
     return True
 
-if _pick_pasar_from_click(map_state, fdf):
-    st.rerun()
-
-
-# =========================
-# GRAFIK (DI BAWAH MAP)
-# =========================
-st.subheader("📈 Grafik (Tahun ke Tahun)")
-
-gdf = df.copy()
-if "kecamatan" in gdf.columns and kec != "(Semua)":
-    gdf = gdf[gdf["kecamatan"] == kec]
-if "nama_pasar" in gdf.columns and nama_pasar != "(Semua)":
-    gdf = gdf[gdf["nama_pasar"] == nama_pasar]
-
-if "tera_ulang_tahun" in gdf.columns:
-    gdf["tera_ulang_tahun"] = pd.to_numeric(gdf["tera_ulang_tahun"], errors="coerce")
-    gdf = gdf.dropna(subset=["tera_ulang_tahun"])
-    gdf["tera_ulang_tahun"] = gdf["tera_ulang_tahun"].astype(int)
+    if _pick_pasar_from_click(map_state, fdf):
+        st.rerun()
+    
+    
+    # =========================
+    # GRAFIK (DI BAWAH MAP)
+    # =========================
+    st.subheader("📈 Grafik (Tahun ke Tahun)")
+    
+    gdf = df.copy()
+    if "kecamatan" in gdf.columns and kec != "(Semua)":
+        gdf = gdf[gdf["kecamatan"] == kec]
+    if "nama_pasar" in gdf.columns and nama_pasar != "(Semua)":
+        gdf = gdf[gdf["nama_pasar"] == nama_pasar]
+    
+    if "tera_ulang_tahun" in gdf.columns:
+        gdf["tera_ulang_tahun"] = pd.to_numeric(gdf["tera_ulang_tahun"], errors="coerce")
+        gdf = gdf.dropna(subset=["tera_ulang_tahun"])
+        gdf["tera_ulang_tahun"] = gdf["tera_ulang_tahun"].astype(int)
 
 agg = gdf.groupby("tera_ulang_tahun", as_index=False).agg(
     jumlah_pasar=("nama_pasar", "nunique") if "nama_pasar" in gdf.columns else ("tera_ulang_tahun", "size"),
