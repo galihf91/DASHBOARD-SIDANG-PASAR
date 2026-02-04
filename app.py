@@ -1182,7 +1182,6 @@ else:
         st.metric("Tahun", year_show)
     with c4:
         st.metric("Total Timbangan", _safe_sum(fdf, "jumlah_timbangan_tera_ulang"))
-
 # =========================
 # MAP
 # =========================
@@ -1200,31 +1199,33 @@ if has_coords:
         st.warning(f"Error processing coordinates: {e}")
         coords = None
 
+# tentukan center & zoom
 center_loc = default_center
 zoom_start = default_zoom
 
-if 'nama_pasar' in fdf.columns and nama_pasar != "(Semua)" and coords is not None and not coords.empty:
-    row_sel = fdf[fdf['nama_pasar'] == nama_pasar].head(1)
-    if not row_sel.empty:
-        try:
-            lat0 = float(row_sel['lat'].iloc[0])
-            lon0 = float(row_sel['lon'].iloc[0])
-            if pd.notna(lat0) and pd.notna(lon0):
-                center_loc = [lat0, lon0]
-                zoom_start = 16
-        except Exception:
-            pass
+if (nama_pasar != "(Semua)") and (coords is not None) and (not coords.empty):
+    row_sel = fdf.head(1)  # karena fdf sudah terfilter pasar jika pasar dipilih
+    try:
+        lat0 = float(row_sel['lat'].iloc[0])
+        lon0 = float(row_sel['lon'].iloc[0])
+        if pd.notna(lat0) and pd.notna(lon0):
+            center_loc = [lat0, lon0]
+            zoom_start = 16
+    except Exception:
+        pass
 elif coords is not None and len(coords) == 1:
     center_loc = [coords.iloc[0]['lat'], coords.iloc[0]['lon']]
     zoom_start = 14
 
-m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, tiles="OpenStreetMap")
+# --- bikin map (nama layer OSM dikosongkan biar tulisan "OpenStreetMap" tidak muncul) ---
+m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, tiles=None)
+folium.TileLayer("OpenStreetMap", name=" ").add_to(m)
 
 # Pane agar batas bisa di atas marker
 from folium.map import CustomPane
 m.add_child(CustomPane("batas-top", z_index=650))
 
-# Load geojson (kalau ada)
+# Load geojson
 geo = None
 try:
     geo = load_geojson(FILE_GEOJSON)
@@ -1242,7 +1243,6 @@ if geo is not None:
         "fillOpacity": 0
     }
 
-    # supaya tidak error kalau folium versi tertentu tidak menerima argumen pane
     try:
         folium.GeoJson(
             geo,
@@ -1258,50 +1258,24 @@ if geo is not None:
             style_function=style_fn,
             tooltip=tooltip
         )
-        # fallback: set pane via options jika tersedia
         try:
             gj_layer.options["pane"] = "batas-top"
         except Exception:
             pass
         gj_layer.add_to(m)
 
-# choropleth opsional (tetap selaras tampilan)
-#if (geo is not None) and show_choro and ('kec_norm' in fdf.columns):
-#    agg = (
-#        fdf.groupby("kec_norm")
-#           .agg(
-#               jumlah_pasar=("nama_pasar", "nunique"),
-#               total_uttp=("jumlah_timbangan_tera_ulang", "sum") if "jumlah_timbangan_tera_ulang" in fdf.columns else ("nama_pasar", "size"),
-#               total_pedagang=("total_pedagang", "sum") if "total_pedagang" in fdf.columns else ("nama_pasar", "size"),
-#           )
-#           .reset_index()
-#    )
-
-#    try:
-#        folium.Choropleth(
-#            geo_data=geo,
-#            data=agg,
-#            columns=["kec_norm", choro_metric],
-#            key_on="feature.properties.kec_norm",
-#            fill_opacity=0.55,
-#            line_opacity=0.35,
-#            legend_name=f"{choro_metric} (hasil filter)",
-#            nan_fill_opacity=0.08
-#        ).add_to(m)
-#    except Exception as e:
-#        st.warning(f"Choropleth gagal dibuat: {e}")
-
 # marker pasar
 if has_coords and coords is not None and not coords.empty:
     cluster = MarkerCluster(name="Pasar", show=True).add_to(m)
 
-    for _, r in fdf.iterrows():
-        try:
-            lat = float(r.get('lat', float('nan')))
-            lon = float(r.get('lon', float('nan')))
-        except Exception:
-            lat, lon = float("nan"), float("nan")
+    # opsional: hindari marker dobel kalau ada duplikasi baris
+    fdf_mark = fdf.dropna(subset=["lat", "lon"]).copy()
+    if {"nama_pasar", "kecamatan", "lat", "lon"}.issubset(fdf_mark.columns):
+        fdf_mark = fdf_mark.drop_duplicates(subset=["nama_pasar", "kecamatan", "lat", "lon"])
 
+    for _, r in fdf_mark.iterrows():
+        lat = pd.to_numeric(r.get("lat"), errors="coerce")
+        lon = pd.to_numeric(r.get("lon"), errors="coerce")
         if pd.isna(lat) or pd.isna(lon):
             continue
 
@@ -1318,9 +1292,9 @@ if has_coords and coords is not None and not coords.empty:
             <div style='font-size: 12px; color:#666; margin-bottom:8px;'>{alamat}</div>
             <hr style='margin:6px 0'/>
             <table style='font-size: 12px; width: 100%;'>
-                <tr><td><b>Tera Ulang</b></td><td style='padding-left:8px'>: {tahun if pd.notna(tahun) else 'Tidak ada data'}</td></tr>
-                <tr><td><b>Total UTTP</b></td><td style='padding-left:8px'>: {jumlah if pd.notna(jumlah) else 'Tidak ada data'}</td></tr>
-                <tr><td><b>Total Pedagang</b></td><td style='padding-left:8px'>: {int(pedagang) if pd.notna(pedagang) else 'Tidak ada data'}</td></tr>
+                <tr><td><b>Tera Ulang</b></td><td style='padding-left:8px'>: {tahun if pd.notna(tahun) else '-'}</td></tr>
+                <tr><td><b>Total UTTP</b></td><td style='padding-left:8px'>: {jumlah if pd.notna(jumlah) else '-'}</td></tr>
+                <tr><td><b>Total Pedagang</b></td><td style='padding-left:8px'>: {int(pedagang) if pd.notna(pedagang) else '-'}</td></tr>
                 <tr><td><b>Jenis Timbangan</b></td><td style='padding-left:8px'>: {jenis}</td></tr>
             </table>
         </div>
@@ -1328,7 +1302,6 @@ if has_coords and coords is not None and not coords.empty:
 
         tooltip_text = f"{nama} - {tahun if pd.notna(tahun) else 'Tahun tidak diketahui'}"
         popup = folium.Popup(html, max_width=320)
-        tooltip2 = folium.Tooltip(tooltip_text)
 
         try:
             y = int(tahun) if pd.notna(tahun) else None
@@ -1337,21 +1310,20 @@ if has_coords and coords is not None and not coords.empty:
 
         col = marker_color(y, int(year_pick))
 
-
         folium.CircleMarker(
-            location=[lat, lon],
+            location=[float(lat), float(lon)],
             radius=10,
             color=col,
             fill=True,
             fill_color=col,
             fill_opacity=0.7,
             weight=2,
-            tooltip=tooltip2,
+            tooltip=folium.Tooltip(tooltip_text),
             popup=popup
         ).add_to(cluster)
 
-    # Auto-fit bounds
-    if not ('nama_pasar' in fdf.columns and nama_pasar != "(Semua)") and len(coords) > 1:
+    # Auto-fit bounds (kalau bukan mode pasar spesifik)
+    if (nama_pasar == "(Semua)") and (coords is not None) and (len(coords) > 1):
         try:
             sw = [coords['lat'].min(), coords['lon'].min()]
             ne = [coords['lat'].max(), coords['lon'].max()]
@@ -1362,28 +1334,21 @@ else:
     st.warning("⚠️ Tidak ada data koordinat yang valid untuk ditampilkan di peta")
 
 folium.LayerControl(collapsed=False).add_to(m)
-st_folium(m, height=500, use_container_width=True)
-
-# (opsional) tabel bawah biar enak cek
-#with st.expander("📋 Lihat data (hasil filter)"):
- #   show_cols = [c for c in [
-  #      "nama_pasar", "kecamatan", "tera_ulang_tahun",
-  #      "jumlah_timbangan_tera_ulang", "total_pedagang", "jenis_timbangan",
-   #     "alamat", "koordinat"
-    #] if c in fdf.columns]
-    #st.dataframe(fdf[show_cols], use_container_width=True)
-# =========================
-# Tampilkan peta
-map_state = st_folium(m, height=500, width="stretch", key="map")
 
 # =========================
-# HANDLE KLIK MARKER -> pilih pasar + kecamatan otomatis
+# TAMPILKAN PETA (HANYA SEKALI)
+# =========================
+try:
+    map_state = st_folium(m, height=500, width="stretch", key="pasar_map")
+except TypeError:
+    # fallback kalau versi streamlit_folium lama
+    map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
+
+
+# =========================
+# HANDLE KLIK MARKER -> pilih pasar + kecamatan otomatis (anti-loop rerun)
 # =========================
 def _pick_pasar_from_click(map_state: dict, df_context: pd.DataFrame) -> bool:
-    """
-    Return True kalau berhasil set pilihan pasar+kecamatan dari klik map.
-    df_context = dataframe yang dipakai untuk menggambar marker (mis. fdf pada tahun terpilih)
-    """
     if not map_state:
         return False
 
@@ -1396,70 +1361,40 @@ def _pick_pasar_from_click(map_state: dict, df_context: pd.DataFrame) -> bool:
     if latc is None or lonc is None:
         return False
 
+    # anti loop: kalau klik yang sama, jangan rerun lagi
+    click_key = (round(float(latc), 6), round(float(lonc), 6))
+    prev = st.session_state.get("pasar_last_click")
+    if prev == click_key:
+        return False
+    st.session_state["pasar_last_click"] = click_key
+
     if df_context is None or df_context.empty or not {'lat','lon','nama_pasar','kecamatan'}.issubset(df_context.columns):
         return False
 
-    # cari baris terdekat (klik marker -> koordinat sama/terdekat)
     tmp = df_context[['lat','lon','nama_pasar','kecamatan']].dropna().copy()
     if tmp.empty:
         return False
 
-    # jarak kuadrat (lebih cepat)
     d2 = (tmp['lat'].astype(float) - float(latc))**2 + (tmp['lon'].astype(float) - float(lonc))**2
     idx = d2.idxmin()
 
-    # threshold biar tidak salah pilih (0.0001 derajat ~ 11 m)
+    # threshold biar tidak salah pilih (sqrt(1e-8)=0.0001 deg ~ 11 m)
     if float(d2.loc[idx]) > 1e-8:
         return False
 
     pasar_clicked = str(df_context.loc[idx, 'nama_pasar'])
     kec_clicked   = str(df_context.loc[idx, 'kecamatan'])
 
-    # set state dropdown
-    st.session_state["last_changed"] = "pasar"
+    # sinkronkan dropdown sidebar (sesuai key sidebar terbaru kamu)
     st.session_state["pasar_sel"] = pasar_clicked
     st.session_state["kec_sel"] = kec_clicked
 
     return True
 
-# df untuk konteks klik = dataset marker yang sedang ditampilkan (umumnya fdf pada tahun terpilih)
-# Kalau map kamu pakai fdf (yang sudah filter year_pick + kec/pasar), pakai fdf.
 changed = _pick_pasar_from_click(map_state, fdf)
 
 if changed:
     st.rerun()
-
-import altair as alt
-
-def line_chart_tight_y(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str, pad_ratio: float = 0.08):
-    d = df_plot[[x_col, y_col]].dropna().copy()
-    if d.empty:
-        st.info(f"Tidak ada data untuk {title}.")
-        return
-
-    y_min = float(d[y_col].min())
-    y_max = float(d[y_col].max())
-
-    if y_min == y_max:
-        pad = max(1.0, abs(y_min) * pad_ratio)
-        y0, y1 = y_min - pad, y_max + pad
-    else:
-        span = y_max - y_min
-        pad = span * pad_ratio
-        y0, y1 = y_min - pad, y_max + pad
-
-    chart = (
-        alt.Chart(d)
-        .mark_line(point=True)
-        .encode(
-            x=alt.X(f"{x_col}:O", title="Tahun"),
-            y=alt.Y(f"{y_col}:Q", title=title, scale=alt.Scale(domain=[y0, y1])),
-            tooltip=[alt.Tooltip(f"{x_col}:O", title="Tahun"), alt.Tooltip(f"{y_col}:Q", title=title)]
-        )
-        .properties(height=280)
-    )
-    st.altair_chart(chart, use_container_width=True)
-
 
 # GRAFIK (di bawah MAP)
 # =========================
