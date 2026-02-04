@@ -17,6 +17,16 @@ st.set_page_config(
 )
 
 st.title("🏪 Status Tera Ulang Timbangan Pasar – Kabupaten Tangerang")
+with st.sidebar:
+    st.markdown("## 📌 Pilih Dashboard")
+    page = st.radio(
+        "Menu",
+        ["🏪 Pasar (Tera Ulang)", "⛽ SPBU"],
+        index=0,
+        label_visibility="collapsed"
+    )
+    st.markdown("---")
+
 st.caption("Dinas Perindustrian dan Perdagangan • Bidang Kemetrologian")
 
 # =========================
