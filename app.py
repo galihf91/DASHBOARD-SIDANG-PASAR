@@ -250,6 +250,40 @@ def render_dashboard_spbu():
     # >>> PASTE SELURUH KODE DASHBOARD SPBU DI SINI <<<
     # tips: semua key session_state gunakan prefix "spbu_"
     pass
+# 1) IMPORT
+import streamlit as st
+import pandas as pd
+...
+
+st.set_page_config(...)
+
+# 2) MENU (di sidebar, taruh dekat atas)
+with st.sidebar:
+    st.markdown("## 📌 Pilih Dashboard")
+    page = st.radio("Menu", ["🏪 Pasar (Tera Ulang)", "⛽ SPBU"], index=0, label_visibility="collapsed")
+    st.markdown("---")
+
+# 3) HELPER FUNCTIONS
+def parse_coord(...):
+    ...
+
+def uniq_clean(...):
+    ...
+
+# 4) DASHBOARD FUNCTIONS
+def render_dashboard_pasar():
+    # seluruh kode dashboard pasar kamu dipindah ke sini
+    ...
+
+def render_dashboard_spbu():
+    # seluruh kode dashboard spbu kamu dipindah ke sini
+    ...
+
+# 5) ✅ POIN 3 ADA DI SINI (PALING BAWAH FILE)
+if page == "🏪 Pasar (Tera Ulang)":
+    render_dashboard_pasar()
+else:
+    render_dashboard_spbu()
 
 
 # =========================
