@@ -34,6 +34,9 @@ st.caption("Dinas Perindustrian dan Perdagangan • Bidang Kemetrologian")
 # =========================
 FILE_EXCEL = "DATA_DASHBOARD_PASAR.xlsx"          # <-- sesuai nama Dayu
 FILE_GEOJSON = "batas_kecamatan_tangerang.geojson"  # <-- sesuaikan kalau beda
+FILE_SPBU = "Data SPBU Kab. Tangerang.csv"   # sesuai nama file kamu
+FILE_GEOJSON = "batas_kecamatan_tangerang.geojson"
+
 
 # =========================
 # UTIL
