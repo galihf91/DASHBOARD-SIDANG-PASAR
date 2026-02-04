@@ -243,6 +243,42 @@ def load_geojson(path: str):
         ft["properties"] = props
 
     return gj
+@st.cache_data
+def load_spbu_csv(path: str) -> pd.DataFrame:
+    df = pd.read_csv(path, sep=";", encoding="utf-8-sig")
+    df = df.rename(columns={
+        "No. SPBU": "nama_spbu",
+        "Alamat": "alamat",
+        "Kecamatan": "kecamatan",
+        "Koordinat": "koordinat",
+        "Media BBM": "media_bbm",
+    })
+
+    # parse koordinat -> lat/lon
+    if "koordinat" in df.columns:
+        coords = df["koordinat"].apply(parse_coord)
+        df["lat"] = coords.apply(lambda x: x[0])
+        df["lon"] = coords.apply(lambda x: x[1])
+
+    # normalisasi list media
+    def _split_media(x):
+        if pd.isna(x) or str(x).strip() == "":
+            return []
+        return [m.strip() for m in str(x).split(",") if m.strip()]
+
+    df["media_list"] = df["media_bbm"].apply(_split_media) if "media_bbm" in df.columns else [[]]*len(df)
+
+    # rapihin tipe
+    for c in ["nama_spbu", "alamat", "kecamatan", "media_bbm"]:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str)
+
+    for c in ["lat", "lon"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    return df
+
 def render_dashboard_pasar():
     # >>> PASTE SELURUH KODE DASHBOARD PASAR DI SINI <<<
     # tips: semua key session_state gunakan prefix "pasar_"
