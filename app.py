@@ -1463,16 +1463,6 @@ else:
 folium.LayerControl(collapsed=False).add_to(m)
 
 # =========================
-# TAMPILKAN PETA (HANYA SEKALI)
-# =========================
-try:
-    map_state = st_folium(m, height=500, width="stretch", key="pasar_map")
-except TypeError:
-    # fallback kalau versi streamlit_folium lama
-    map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
-
-
-# =========================
 # HANDLE KLIK MARKER -> pilih pasar + kecamatan otomatis (anti-loop rerun)
 # =========================
 def _pick_pasar_from_click(map_state: dict, df_context: pd.DataFrame) -> bool:
