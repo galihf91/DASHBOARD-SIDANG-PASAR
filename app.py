@@ -717,8 +717,11 @@ def render_dashboard_pasar():
     
     folium.LayerControl(collapsed=False).add_to(m)
     
-    # >>> PANGGIL st_folium SEKALI, sekalian ambil map_state
-    map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
+       # >>> PANGGIL st_folium SEKALI, sekalian ambil map_state (kompatibel)
+    try:
+        map_state = st_folium(m, height=500, width="stretch", key="pasar_map")
+    except TypeError:
+        map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
     # klik marker -> dropdown ikut (pasar & kecamatan)
     if pick_from_click(
         map_state,
