@@ -362,7 +362,7 @@ def pick_from_click(map_state: dict, df_context: pd.DataFrame, lat_col="lat", lo
     idx = d2.idxmin()
 
     # threshold klik agar tidak salah pilih (1e-8 ~ sangat dekat)
-    if float(d2.loc[idx]) > 1e-8:
+    if float(d2.loc[idx]) > 1e-6:
         return False
 
     nm = str(df_context.loc[idx, name_col])
