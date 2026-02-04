@@ -516,19 +516,19 @@ def render_dashboard_pasar():
             st.markdown(f"**{label}**: {val:,}")
         st.markdown(f"**Total UTTP (semua jenis):** {total_uttp:,}")
 
-# =========================
-# FILTER DATA (UTAMA)
-# =========================
-fdf = df.copy()
 
-if "tera_ulang_tahun" in fdf.columns:
-    fdf = fdf[fdf["tera_ulang_tahun"] == int(year_pick)]
-
-if "kecamatan" in fdf.columns and kec != "(Semua)":
-    fdf = fdf[fdf["kecamatan"] == kec]
-
-if "nama_pasar" in fdf.columns and nama_pasar != "(Semua)":
-    fdf = fdf[fdf["nama_pasar"] == nama_pasar]
+    # FILTER DATA (UTAMA)
+    # =========================
+    fdf = df.copy()
+    
+    if "tera_ulang_tahun" in fdf.columns:
+        fdf = fdf[fdf["tera_ulang_tahun"] == int(year_pick)]
+    
+    if "kecamatan" in fdf.columns and kec != "(Semua)":
+        fdf = fdf[fdf["kecamatan"] == kec]
+    
+    if "nama_pasar" in fdf.columns and nama_pasar != "(Semua)":
+        fdf = fdf[fdf["nama_pasar"] == nama_pasar]
 
 
 # =========================
