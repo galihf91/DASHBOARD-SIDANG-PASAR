@@ -720,46 +720,6 @@ def render_dashboard_pasar():
     # >>> PANGGIL st_folium SEKALI, sekalian ambil map_state
     map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
 
-
-# =========================
-# HANDLE KLIK MARKER -> dropdown ikut pasar yang diklik
-# =========================
-def _pick_pasar_from_click(map_state: dict, df_context: pd.DataFrame) -> bool:
-    if not map_state:
-        return False
-
-    clicked = map_state.get("last_object_clicked")
-    if not clicked:
-        return False
-
-    latc = clicked.get("lat")
-    lonc = clicked.get("lng")
-    if latc is None or lonc is None:
-        return False
-
-    if df_context is None or df_context.empty:
-        return False
-    if not {"lat", "lon", "nama_pasar", "kecamatan"}.issubset(df_context.columns):
-        return False
-
-    tmp = df_context[["lat", "lon", "nama_pasar", "kecamatan"]].dropna().copy()
-    if tmp.empty:
-        return False
-
-    d2 = (tmp["lat"].astype(float) - float(latc)) ** 2 + (tmp["lon"].astype(float) - float(lonc)) ** 2
-    idx = d2.idxmin()
-
-    # threshold biar tidak salah pilih (klik jauh dari marker)
-    if float(d2.loc[idx]) > 1e-8:
-        return False
-
-    pasar_clicked = str(df_context.loc[idx, "nama_pasar"])
-    kec_clicked   = str(df_context.loc[idx, "kecamatan"])
-
-    st.session_state["pasar_sel"] = pasar_clicked
-    st.session_state["kec_sel"] = kec_clicked
-    return True
-
     # =========================
     # GRAFIK (DI BAWAH MAP)
     # =========================
