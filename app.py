@@ -749,21 +749,17 @@ def _pick_pasar_from_click(map_state: dict, df_context: pd.DataFrame) -> bool:
     d2 = (tmp["lat"].astype(float) - float(latc)) ** 2 + (tmp["lon"].astype(float) - float(lonc)) ** 2
     idx = d2.idxmin()
 
-    # threshold agar tidak salah pilih (klik jauh dari marker)
+    # threshold biar tidak salah pilih (klik jauh dari marker)
     if float(d2.loc[idx]) > 1e-8:
         return False
 
     pasar_clicked = str(df_context.loc[idx, "nama_pasar"])
-    kec_clicked = str(df_context.loc[idx, "kecamatan"])
+    kec_clicked   = str(df_context.loc[idx, "kecamatan"])
 
     st.session_state["pasar_sel"] = pasar_clicked
     st.session_state["kec_sel"] = kec_clicked
     return True
 
-    if _pick_pasar_from_click(map_state, fdf):
-        st.rerun()
-    
-    
     # =========================
     # GRAFIK (DI BAWAH MAP)
     # =========================
