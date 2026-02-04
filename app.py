@@ -253,48 +253,68 @@ def load_spbu_csv(path: str) -> pd.DataFrame:
 
 
 # =========================
-# CHART HELPERS (ALTair)
+# CHART HELPERS (ALTAIR)
 # =========================
-def line_chart_alt(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str):
-    """Line chart dengan sumbu X jelas (tahun) + domain Y diperkecil biar tren terlihat."""
+import altair as alt
+
+def _show_altair(chart):
+    """Aman untuk streamlit baru/lama."""
     try:
-        import altair as alt
-        d = df_plot[[x_col, y_col]].dropna().copy()
-        if d.empty:
-            st.info("Tidak ada data untuk grafik.")
-            return
+        st.altair_chart(chart, width="stretch")
+    except TypeError:
+        st.altair_chart(chart, use_container_width=True)
 
-        y_min = float(d[y_col].min())
-        y_max = float(d[y_col].max())
-        if y_min == y_max:
-            y_domain = [y_min - 1, y_max + 1]
-        else:
-            pad = (y_max - y_min) * 0.10
-            y_domain = [y_min - pad, y_max + pad]
+def line_chart_alt(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str, pad_ratio: float = 0.08):
+    """Line chart: X jelas + domain Y diperkecil supaya tren terlihat."""
+    d = df_plot[[x_col, y_col]].dropna().copy()
+    if d.empty:
+        st.info("Tidak ada data untuk grafik.")
+        return
 
+    y_min = float(d[y_col].min())
+    y_max = float(d[y_col].max())
+
+    if y_min == y_max:
+        pad = max(1.0, abs(y_min) * pad_ratio)
+        y0, y1 = y_min - pad, y_max + pad
+    else:
+        span = y_max - y_min
+        pad = span * pad_ratio
+        y0, y1 = y_min - pad, y_max + pad
+
+    chart = (
+        alt.Chart(d)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(f"{x_col}:O", title="Tahun", axis=alt.Axis(labelAngle=0)),
+            y=alt.Y(f"{y_col}:Q", title=title, scale=alt.Scale(domain=[y0, y1])),
+            tooltip=[alt.Tooltip(f"{x_col}:O", title="Tahun"),
+                     alt.Tooltip(f"{y_col}:Q", title=title, format=",.0f")]
+        )
+        .properties(height=260)
+    )
+    _show_altair(chart)
+
+def bar_chart_alt(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str, horizontal: bool = False):
+    """Bar chart: default vertical, opsi horizontal untuk label panjang."""
+    d = df_plot[[x_col, y_col]].dropna().copy()
+    if d.empty:
+        st.info("Tidak ada data untuk grafik.")
+        return
+
+    if horizontal:
         chart = (
             alt.Chart(d)
-            .mark_line(point=True)
+            .mark_bar()
             .encode(
-                x=alt.X(f"{x_col}:O", title="Tahun", axis=alt.Axis(labelAngle=0)),
-                y=alt.Y(f"{y_col}:Q", title=title, scale=alt.Scale(domain=y_domain)),
-                tooltip=[alt.Tooltip(f"{x_col}:O", title="Tahun"),
-                         alt.Tooltip(f"{y_col}:Q", title=title)]
+                y=alt.Y(f"{x_col}:N", sort="-x", title=None),
+                x=alt.X(f"{y_col}:Q", title=title),
+                tooltip=[alt.Tooltip(f"{x_col}:N", title=x_col),
+                         alt.Tooltip(f"{y_col}:Q", title=title, format=",.0f")]
             )
-            .properties(height=260)
+            .properties(height=360)
         )
-        st.altair_chart(chart, width="stretch")
-    except Exception:
-        # fallback
-        st.line_chart(df_plot.set_index(x_col)[[y_col]])
-
-def bar_chart_alt(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str):
-    try:
-        import altair as alt
-        d = df_plot[[x_col, y_col]].dropna().copy()
-        if d.empty:
-            st.info("Tidak ada data untuk grafik.")
-            return
+    else:
         chart = (
             alt.Chart(d)
             .mark_bar()
@@ -302,14 +322,12 @@ def bar_chart_alt(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str):
                 x=alt.X(f"{x_col}:N", title=x_col, sort="-y", axis=alt.Axis(labelAngle=-35)),
                 y=alt.Y(f"{y_col}:Q", title=title),
                 tooltip=[alt.Tooltip(f"{x_col}:N", title=x_col),
-                         alt.Tooltip(f"{y_col}:Q", title=title)]
+                         alt.Tooltip(f"{y_col}:Q", title=title, format=",.0f")]
             )
             .properties(height=320)
         )
-        st.altair_chart(chart, width="stretch")
-    except Exception:
-        st.bar_chart(df_plot.set_index(x_col)[[y_col]])
 
+    _show_altair(chart)
 
 # =========================
 # MAP CLICK -> PICK HELPER
