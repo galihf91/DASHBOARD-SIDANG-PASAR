@@ -240,6 +240,17 @@ def load_geojson(path: str):
         ft["properties"] = props
 
     return gj
+def render_dashboard_pasar():
+    # >>> PASTE SELURUH KODE DASHBOARD PASAR DI SINI <<<
+    # tips: semua key session_state gunakan prefix "pasar_"
+    pass
+
+
+def render_dashboard_spbu():
+    # >>> PASTE SELURUH KODE DASHBOARD SPBU DI SINI <<<
+    # tips: semua key session_state gunakan prefix "spbu_"
+    pass
+
 
 # =========================
 # MAIN APP
