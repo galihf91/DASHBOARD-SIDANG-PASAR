@@ -719,6 +719,15 @@ def render_dashboard_pasar():
     
     # >>> PANGGIL st_folium SEKALI, sekalian ambil map_state
     map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
+    # klik marker -> dropdown ikut (pasar & kecamatan)
+    if pick_from_click(
+        map_state,
+        fdf,                    # konteks marker yang tampil
+        name_col="nama_pasar",
+        kec_col="kecamatan",
+        state_prefix="pasar"
+    ):
+        st.rerun()
 
     # =========================
     # GRAFIK (DI BAWAH MAP)
