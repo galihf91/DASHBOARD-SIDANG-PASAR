@@ -548,35 +548,35 @@ def render_dashboard_pasar():
             total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
             st.metric("Total Timbangan", total_timb)
 
-elif kec != "(Semua)" and nama_pasar == "(Semua)":
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("Kecamatan", kec)
-    with c2:
-        total_pasar_kec = clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0
-        st.metric("Total Pasar", total_pasar_kec)
-    with c3:
-        st.metric("Tahun", int(year_pick))
-    with c4:
-        total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
-        st.metric("Total Timbangan", total_timb)
+    elif kec != "(Semua)" and nama_pasar == "(Semua)":
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Kecamatan", kec)
+        with c2:
+            total_pasar_kec = clean_str_series(fdf["nama_pasar"]).nunique() if "nama_pasar" in fdf.columns else 0
+            st.metric("Total Pasar", total_pasar_kec)
+        with c3:
+            st.metric("Tahun", int(year_pick))
+        with c4:
+            total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
+            st.metric("Total Timbangan", total_timb)
 
-else:
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("Nama Pasar", nama_pasar if nama_pasar != "(Semua)" else "—")
-    with c2:
-        kec_auto = (
-            fdf["kecamatan"].dropna().iloc[0]
-            if ("kecamatan" in fdf.columns and not fdf.empty)
-            else (kec if kec != "(Semua)" else "—")
-        )
-        st.metric("Kecamatan", kec_auto)
-    with c3:
-        st.metric("Tahun", int(year_pick))
-    with c4:
-        total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
-        st.metric("Total Timbangan", total_timb)
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Nama Pasar", nama_pasar if nama_pasar != "(Semua)" else "—")
+        with c2:
+            kec_auto = (
+                fdf["kecamatan"].dropna().iloc[0]
+                if ("kecamatan" in fdf.columns and not fdf.empty)
+                else (kec if kec != "(Semua)" else "—")
+            )
+            st.metric("Kecamatan", kec_auto)
+        with c3:
+            st.metric("Tahun", int(year_pick))
+        with c4:
+            total_timb = int(pd.to_numeric(fdf.get("jumlah_timbangan_tera_ulang", 0), errors="coerce").fillna(0).sum())
+            st.metric("Total Timbangan", total_timb)
 
 
 # =========================
