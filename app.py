@@ -1395,16 +1395,54 @@ changed = _pick_pasar_from_click(map_state, fdf)
 
 if changed:
     st.rerun()
-
+# =========================
 # GRAFIK (di bawah MAP)
 # =========================
 st.subheader("📈 Grafik Tren (Tahun ke Tahun)")
 
-# Grafik menyesuaikan pilihan user (kecamatan/pasar),
+import altair as alt
+
+def _show_altair(chart):
+    """Aman untuk streamlit versi baru/lama (width vs use_container_width)."""
+    try:
+        st.altair_chart(chart, width="stretch")
+    except TypeError:
+        st.altair_chart(chart, use_container_width=True)
+
+def line_chart_tight_y(df_plot: pd.DataFrame, x_col: str, y_col: str, y_title: str, pad_ratio: float = 0.06):
+    d = df_plot[[x_col, y_col]].dropna().copy()
+    if d.empty:
+        st.info(f"Tidak ada data untuk {y_title}.")
+        return
+
+    y_min = float(d[y_col].min())
+    y_max = float(d[y_col].max())
+
+    if y_min == y_max:
+        pad = max(1.0, abs(y_min) * pad_ratio)
+        y0, y1 = y_min - pad, y_max + pad
+    else:
+        span = y_max - y_min
+        pad = span * pad_ratio
+        y0, y1 = y_min - pad, y_max + pad
+
+    chart = (
+        alt.Chart(d)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(f"{x_col}:O", title="Tahun", sort=list(d[x_col].astype(str).unique())),
+            y=alt.Y(f"{y_col}:Q", title=y_title, scale=alt.Scale(domain=[y0, y1])),
+            tooltip=[alt.Tooltip(f"{x_col}:O", title="Tahun"),
+                     alt.Tooltip(f"{y_col}:Q", title=y_title)]
+        )
+        .properties(height=280)
+    )
+    _show_altair(chart)
+
+# Grafik tren menyesuaikan pilihan user (kecamatan/pasar),
 # tapi untuk tren tidak dibatasi year_pick (biar terlihat 2021–2025).
 gdf = df.copy()
 
-# scope sesuai pilihan user
 if 'kecamatan' in gdf.columns and kec != "(Semua)":
     gdf = gdf[gdf['kecamatan'] == kec]
 if 'nama_pasar' in gdf.columns and nama_pasar != "(Semua)":
@@ -1416,124 +1454,120 @@ if 'tera_ulang_tahun' in gdf.columns:
     gdf = gdf.dropna(subset=['tera_ulang_tahun'])
     gdf['tera_ulang_tahun'] = gdf['tera_ulang_tahun'].astype(int)
 
-# agregasi per tahun
-agg = gdf.groupby('tera_ulang_tahun', as_index=False).agg(
-    jumlah_kecamatan=('kecamatan', 'nunique') if 'kecamatan' in gdf.columns else ('tera_ulang_tahun', 'size'),
-    jumlah_pasar=('nama_pasar', 'nunique') if 'nama_pasar' in gdf.columns else ('tera_ulang_tahun', 'size'),
-    total_uttp=('jumlah_timbangan_tera_ulang', 'sum') if 'jumlah_timbangan_tera_ulang' in gdf.columns else ('tera_ulang_tahun', 'size'),
-    total_pedagang=('total_pedagang', 'sum') if 'total_pedagang' in gdf.columns else ('tera_ulang_tahun', 'size'),
-).sort_values('tera_ulang_tahun')
-
-if agg.empty:
+if gdf.empty or 'tera_ulang_tahun' not in gdf.columns:
     st.info("Tidak ada data untuk ditampilkan pada grafik (cek pilihan filter).")
-    
 else:
-    agg_plot = agg.copy()
-    agg_plot["Tahun"] = agg_plot["tera_ulang_tahun"].astype(int).astype(str)
-    agg_plot = agg_plot.set_index("Tahun")
-    agg_plot.index.name = "Tahun"
-    
-    st.line_chart(agg_plot[['jumlah_kecamatan']])
-    # ====== Level 1: Semua Kecamatan & Semua Pasar ======
-if kec == "(Semua)" and nama_pasar == "(Semua)":
-    st.caption("Menampilkan tren seluruh kabupaten per tahun.")
+    # agregasi per tahun (TANPA jumlah_kecamatan)
+    agg = (
+        gdf.groupby('tera_ulang_tahun', as_index=False)
+           .agg(
+               jumlah_pasar=('nama_pasar', 'nunique') if 'nama_pasar' in gdf.columns else ('tera_ulang_tahun', 'size'),
+               total_uttp=('jumlah_timbangan_tera_ulang', 'sum') if 'jumlah_timbangan_tera_ulang' in gdf.columns else ('tera_ulang_tahun', 'size'),
+               total_pedagang=('total_pedagang', 'sum') if 'total_pedagang' in gdf.columns else ('tera_ulang_tahun', 'size'),
+           )
+           .sort_values('tera_ulang_tahun')
+    )
 
-    # agg sudah ada (hasil groupby per tahun)
-    agg_show = agg.copy()
-    agg_show["Tahun"] = agg_show["tera_ulang_tahun"].astype(int).astype(str)
+    if agg.empty:
+        st.info("Tidak ada data tren untuk pilihan ini.")
+    else:
+        agg_show = agg.copy()
+        agg_show["Tahun"] = agg_show["tera_ulang_tahun"].astype(int).astype(str)
 
-    c1, c2, c3 = st.columns(3)
+        # ====== Level 1: Semua Kecamatan & Semua Pasar ======
+        if kec == "(Semua)" and nama_pasar == "(Semua)":
+            st.caption("Menampilkan tren seluruh kabupaten per tahun.")
+            c1, c2, c3 = st.columns(3)
 
-    with c1:
-        st.markdown("**Tren Jumlah Pasar**")
-        line_chart_tight_y(agg_show, "Tahun", "jumlah_pasar", "Jumlah Pasar", pad_ratio=0.05)
+            with c1:
+                st.markdown("**Tren Jumlah Pasar**")
+                line_chart_tight_y(agg_show, "Tahun", "jumlah_pasar", "Jumlah Pasar", pad_ratio=0.05)
 
-    with c2:
-        st.markdown("**Tren Total UTTP**")
-        line_chart_tight_y(agg_show, "Tahun", "total_uttp", "Total UTTP", pad_ratio=0.05)
+            with c2:
+                st.markdown("**Tren Total UTTP**")
+                line_chart_tight_y(agg_show, "Tahun", "total_uttp", "Total UTTP", pad_ratio=0.05)
 
-    with c3:
-        st.markdown("**Tren Total Pedagang**")
-        line_chart_tight_y(agg_show, "Tahun", "total_pedagang", "Total Pedagang", pad_ratio=0.05)
+            with c3:
+                st.markdown("**Tren Total Pedagang**")
+                line_chart_tight_y(agg_show, "Tahun", "total_pedagang", "Total Pedagang", pad_ratio=0.05)
 
+        # ====== Level 2: Kecamatan dipilih (Pasar semua) ======
+        elif kec != "(Semua)" and nama_pasar == "(Semua)":
+            st.caption(f"Menampilkan tren Kecamatan **{kec}** per tahun.")
+            c1, c2 = st.columns(2)
 
-    # ====== Level 2: Kecamatan dipilih (Pasar semua) ======
-elif kec != "(Semua)" and nama_pasar == "(Semua)":
-    st.caption(f"Menampilkan tren Kecamatan **{kec}** per tahun.")
-    c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Tren Jumlah Pasar (di kecamatan terpilih)**")
+                line_chart_tight_y(agg_show, "Tahun", "jumlah_pasar", "Jumlah Pasar", pad_ratio=0.06)
 
-    with c1:
-        st.markdown("**Tren Jumlah Pasar (di kecamatan terpilih)**")
-        st.line_chart(agg_plot[['jumlah_pasar']])
+            with c2:
+                st.markdown("**Tren Total UTTP (di kecamatan terpilih)**")
+                line_chart_tight_y(agg_show, "Tahun", "total_uttp", "Total UTTP", pad_ratio=0.06)
 
-    with c2:
-        st.markdown("**Tren Total UTTP (di kecamatan terpilih)**")
-        st.line_chart(agg_plot[['total_uttp']])
+            # Top pasar pada tahun terpilih (year_pick)
+            if {'nama_pasar', 'tera_ulang_tahun', 'jumlah_timbangan_tera_ulang', 'kecamatan'}.issubset(df.columns):
+                top_df = df.copy()
+                top_df['tera_ulang_tahun'] = pd.to_numeric(top_df['tera_ulang_tahun'], errors='coerce')
+                top_df = top_df.dropna(subset=['tera_ulang_tahun'])
+                top_df['tera_ulang_tahun'] = top_df['tera_ulang_tahun'].astype(int)
 
-    # Top pasar pada tahun terpilih (year_pick)
-    if {'nama_pasar', 'tera_ulang_tahun', 'jumlah_timbangan_tera_ulang', 'kecamatan'}.issubset(df.columns):
-        top_df = df.copy()
-        top_df['tera_ulang_tahun'] = pd.to_numeric(top_df['tera_ulang_tahun'], errors='coerce')
-        top_df = top_df.dropna(subset=['tera_ulang_tahun'])
-        top_df['tera_ulang_tahun'] = top_df['tera_ulang_tahun'].astype(int)
+                top_df = top_df[(top_df['tera_ulang_tahun'] == int(year_pick)) & (top_df['kecamatan'] == kec)]
 
-        top_df = top_df[(top_df['tera_ulang_tahun'] == int(year_pick)) & (top_df['kecamatan'] == kec)]
+                if not top_df.empty:
+                    top_pasar = (
+                        top_df.groupby('nama_pasar', as_index=False)['jumlah_timbangan_tera_ulang']
+                              .sum()
+                              .sort_values('jumlah_timbangan_tera_ulang', ascending=False)
+                              .head(10)
+                    )
 
-        if not top_df.empty:
-            top_pasar = (
-                top_df.groupby('nama_pasar', as_index=False)['jumlah_timbangan_tera_ulang']
-                .sum()
-                .sort_values('jumlah_timbangan_tera_ulang', ascending=False)
-                .head(10)
-            )
+                    st.markdown(f"**Top 10 Pasar (UTTP) di tahun {int(year_pick)} – Kecamatan {kec}**")
+                    top_plot = top_pasar.set_index('nama_pasar')[['jumlah_timbangan_tera_ulang']]
+                    top_plot.index.name = "Nama Pasar"
+                    st.bar_chart(top_plot)
+                else:
+                    st.info(f"Tidak ada data Top Pasar untuk tahun {int(year_pick)} di Kecamatan {kec}.")
 
-            st.markdown(f"**Top 10 Pasar (UTTP) di tahun {int(year_pick)} – Kecamatan {kec}**")
-            top_plot = top_pasar.set_index('nama_pasar')[['jumlah_timbangan_tera_ulang']]
-            top_plot.index.name = "Nama Pasar"
-            st.bar_chart(top_plot)
+        # ====== Level 3: Pasar dipilih ======
         else:
-            st.info(f"Tidak ada data Top Pasar untuk tahun {int(year_pick)} di Kecamatan {kec}.")
+            st.caption(f"Menampilkan tren Pasar **{nama_pasar}** per tahun.")
+            c1, c2 = st.columns(2)
 
-# ====== Level 3: Pasar dipilih ======
-else:
-    st.caption(f"Menampilkan tren Pasar **{nama_pasar}** per tahun.")
-    c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Tren Total UTTP (pasar terpilih)**")
+                line_chart_tight_y(agg_show, "Tahun", "total_uttp", "Total UTTP", pad_ratio=0.06)
 
-    with c1:
-        st.markdown("**Tren Total UTTP (pasar terpilih)**")
-        st.line_chart(agg_plot[['total_uttp']])
+            with c2:
+                st.markdown("**Tren Total Pedagang (pasar terpilih)**")
+                line_chart_tight_y(agg_show, "Tahun", "total_pedagang", "Total Pedagang", pad_ratio=0.06)
 
-    with c2:
-        st.markdown("**Tren Total Pedagang (pasar terpilih)**")
-        st.line_chart(agg_plot[['total_pedagang']])
+            # Komposisi jenis timbangan per tahun (stacked)
+            timb_cols = [c for c in [
+                'Timb. Pegas','Timb. Meja','Timb. Elektronik','Timb. Sentisimal',
+                'Timb. Bobot Ingsut','Neraca','Dacin'
+            ] if c in gdf.columns]
 
-    # Komposisi jenis timbangan per tahun (stacked)
-    timb_cols = [c for c in [
-        'Timb. Pegas','Timb. Meja','Timb. Elektronik','Timb. Sentisimal',
-        'Timb. Bobot Ingsut','Neraca','Dacin'
-    ] if c in gdf.columns]
+            if timb_cols:
+                try:
+                    g_year = gdf.groupby('tera_ulang_tahun', as_index=False)[timb_cols].sum()
+                    g_year["Tahun"] = g_year["tera_ulang_tahun"].astype(int).astype(str)
 
-    if timb_cols:
-        try:
-            import altair as alt
+                    m2 = g_year.melt('Tahun', value_vars=timb_cols, var_name='Jenis', value_name='Jumlah')
 
-            g_year = gdf.groupby('tera_ulang_tahun', as_index=False)[timb_cols].sum()
-            m2 = g_year.melt('tera_ulang_tahun', var_name='Jenis', value_name='Jumlah')
+                    st.markdown("**Komposisi Jenis Timbangan per Tahun (pasar terpilih)**")
+                    chart = (
+                        alt.Chart(m2)
+                        .mark_bar()
+                        .encode(
+                            x=alt.X('Tahun:O', title='Tahun'),
+                            y=alt.Y('Jumlah:Q', title='Jumlah'),
+                            color=alt.Color('Jenis:N', title='Jenis'),
+                            tooltip=['Tahun:O', 'Jenis:N', 'Jumlah:Q']
+                        )
+                        .properties(height=320)
+                    )
+                    _show_altair(chart)
 
-            st.markdown("**Komposisi Jenis Timbangan per Tahun (pasar terpilih)**")
-            chart = (
-                alt.Chart(m2)
-                .mark_bar()
-                .encode(
-                    x=alt.X('tera_ulang_tahun:O', title='Tahun'),
-                    y=alt.Y('Jumlah:Q', title='Jumlah'),
-                    color='Jenis:N',
-                    tooltip=['tera_ulang_tahun:O', 'Jenis:N', 'Jumlah:Q']
-                )
-                .properties(height=320)
-            )
-            st.altair_chart(chart, use_container_width=True)
-
-        except Exception as e:
-            st.warning(f"Grafik komposisi (Altair) tidak bisa dibuat: {e}")
-            st.dataframe(gdf.groupby('tera_ulang_tahun')[timb_cols].sum())
+                except Exception as e:
+                    st.warning(f"Grafik komposisi (Altair) tidak bisa dibuat: {e}")
+                    st.dataframe(gdf.groupby('tera_ulang_tahun')[timb_cols].sum())
