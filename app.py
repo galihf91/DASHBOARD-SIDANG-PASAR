@@ -329,6 +329,46 @@ def bar_chart_alt(df_plot: pd.DataFrame, x_col: str, y_col: str, title: str, hor
 
     _show_altair(chart)
 
+def line_chart_tight_y(df_plot, x_col: str, y_col: str, title: str, pad_ratio: float = 0.08):
+    """
+    Line chart Altair dengan sumbu X jelas + domain Y dipersempit supaya tren naik-turun terlihat.
+    df_plot harus punya kolom x_col dan y_col.
+    """
+    d = df_plot[[x_col, y_col]].dropna().copy()
+    if d.empty:
+        st.info(f"Tidak ada data untuk grafik: {title}")
+        return
+
+    # pastikan x jadi string biar tampil rapi sebagai kategori Tahun
+    d[x_col] = d[x_col].astype(str)
+
+    y_min = float(d[y_col].min())
+    y_max = float(d[y_col].max())
+
+    if y_min == y_max:
+        pad = max(1.0, abs(y_min) * pad_ratio)
+        y0, y1 = y_min - pad, y_max + pad
+    else:
+        span = y_max - y_min
+        pad = span * pad_ratio
+        y0, y1 = y_min - pad, y_max + pad
+
+    chart = (
+        alt.Chart(d)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(f"{x_col}:O", title="Tahun", axis=alt.Axis(labelAngle=0)),
+            y=alt.Y(f"{y_col}:Q", title=title, scale=alt.Scale(domain=[y0, y1])),
+            tooltip=[alt.Tooltip(f"{x_col}:O", title="Tahun"),
+                     alt.Tooltip(f"{y_col}:Q", title=title)]
+        )
+        .properties(height=280)
+    )
+
+    # streamlit terbaru: pakai width="stretch"
+    st.altair_chart(chart, width="stretch")
+
+
 # =========================
 # MAP CLICK -> PICK HELPER
 # =========================
