@@ -582,143 +582,143 @@ def render_dashboard_pasar():
 # =========================
 # MAP (PANGGIL SEKALI SAJA)
 # =========================
-st.subheader("🗺️ Peta Lokasi Pasar")
-
-default_center = [-6.2, 106.55]
-default_zoom = 10
-
-has_coords = {"lat", "lon"}.issubset(fdf.columns)
-coords = None
-if has_coords:
-    try:
-        coords = fdf[["lat", "lon"]].astype(float).dropna()
-    except Exception as e:
-        st.warning(f"Error processing coordinates: {e}")
-        coords = None
-
-center_loc = default_center
-zoom_start = default_zoom
-
-if "nama_pasar" in fdf.columns and nama_pasar != "(Semua)" and coords is not None and not coords.empty:
-    row_sel = fdf[fdf["nama_pasar"] == nama_pasar].head(1)
-    if not row_sel.empty:
+    st.subheader("🗺️ Peta Lokasi Pasar")
+    
+    default_center = [-6.2, 106.55]
+    default_zoom = 10
+    
+    has_coords = {"lat", "lon"}.issubset(fdf.columns)
+    coords = None
+    if has_coords:
         try:
-            lat0 = float(row_sel["lat"].iloc[0])
-            lon0 = float(row_sel["lon"].iloc[0])
-            if pd.notna(lat0) and pd.notna(lon0):
-                center_loc = [lat0, lon0]
-                zoom_start = 16
-        except Exception:
-            pass
-elif coords is not None and len(coords) == 1:
-    center_loc = [coords.iloc[0]["lat"], coords.iloc[0]["lon"]]
-    zoom_start = 14
-
-# tiles disembunyikan dari LayerControl (tetap tampil)
-m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, tiles=None)
-folium.TileLayer("OpenStreetMap", control=False).add_to(m)
-
-# Pane agar batas bisa di atas marker
-from folium.map import CustomPane
-m.add_child(CustomPane("batas-top", z_index=650))
-
-# Load geojson (kalau ada)
-geo = None
-try:
-    geo = load_geojson(FILE_GEOJSON)
-except Exception as e:
-    st.warning(f"⚠️ GeoJSON tidak terbaca: {e}")
-
-if geo is not None:
-    tooltip = folium.GeoJsonTooltip(fields=["kec_label"], aliases=["Kecamatan:"])
-    style_fn = lambda x: {"color": "#8000FF", "weight": 2, "opacity": 1.0, "fill": False, "fillOpacity": 0}
-    try:
-        folium.GeoJson(
-            geo,
-            name="Batas Kecamatan",
-            pane="batas-top",
-            style_function=style_fn,
-            tooltip=tooltip,
-        ).add_to(m)
-    except TypeError:
-        gj_layer = folium.GeoJson(geo, name="Batas Kecamatan", style_function=style_fn, tooltip=tooltip)
-        try:
-            gj_layer.options["pane"] = "batas-top"
-        except Exception:
-            pass
-        gj_layer.add_to(m)
-
-# Marker pasar
-if has_coords and coords is not None and not coords.empty:
-    cluster = MarkerCluster(name="Pasar", show=True).add_to(m)
-
-    for _, r in fdf.iterrows():
-        try:
-            lat = float(r.get("lat", float("nan")))
-            lon = float(r.get("lon", float("nan")))
-        except Exception:
-            lat, lon = float("nan"), float("nan")
-
-        if pd.isna(lat) or pd.isna(lon):
-            continue
-
-        nama = str(r.get("nama_pasar", "Unknown"))
-        alamat = str(r.get("alamat", "Tidak ada alamat"))
-        tahun = r.get("tera_ulang_tahun", None)
-        jumlah = r.get("jumlah_timbangan_tera_ulang", None)
-        jenis = str(r.get("jenis_timbangan", "Tidak ada data"))
-        pedagang = r.get("total_pedagang", None)
-
-        html = f"""
-        <div style='width: 280px; font-family: Arial, sans-serif;'>
-            <h4 style='margin:8px 0; color: #2E86AB;'>{nama}</h4>
-            <div style='font-size: 12px; color:#666; margin-bottom:8px;'>{alamat}</div>
-            <hr style='margin:6px 0'/>
-            <table style='font-size: 12px; width: 100%;'>
-                <tr><td><b>Tera Ulang</b></td><td style='padding-left:8px'>: {tahun if pd.notna(tahun) else 'Tidak ada data'}</td></tr>
-                <tr><td><b>Total UTTP</b></td><td style='padding-left:8px'>: {jumlah if pd.notna(jumlah) else 'Tidak ada data'}</td></tr>
-                <tr><td><b>Total Pedagang</b></td><td style='padding-left:8px'>: {int(pedagang) if pd.notna(pedagang) else 'Tidak ada data'}</td></tr>
-                <tr><td><b>Jenis Timbangan</b></td><td style='padding-left:8px'>: {jenis}</td></tr>
-            </table>
-        </div>
-        """
-
-        tooltip_text = f"{nama} - {tahun if pd.notna(tahun) else 'Tahun tidak diketahui'}"
-        popup = folium.Popup(html, max_width=320)
-
-        try:
-            y = int(tahun) if pd.notna(tahun) else None
-        except Exception:
-            y = None
-
-        col = marker_color(y, int(year_pick))
-
-        folium.CircleMarker(
-            location=[lat, lon],
-            radius=10,
-            color=col,
-            fill=True,
-            fill_color=col,
-            fill_opacity=0.7,
-            weight=2,
-            tooltip=folium.Tooltip(tooltip_text),
-            popup=popup,
-        ).add_to(cluster)
-
-    if not ("nama_pasar" in fdf.columns and nama_pasar != "(Semua)") and len(coords) > 1:
-        try:
-            sw = [coords["lat"].min(), coords["lon"].min()]
-            ne = [coords["lat"].max(), coords["lon"].max()]
-            m.fit_bounds([sw, ne], padding=(30, 30))
+            coords = fdf[["lat", "lon"]].astype(float).dropna()
         except Exception as e:
-            st.warning(f"Tidak bisa auto-fit peta: {e}")
-else:
-    st.warning("⚠️ Tidak ada data koordinat yang valid untuk ditampilkan di peta")
-
-folium.LayerControl(collapsed=False).add_to(m)
-
-# >>> PANGGIL st_folium SEKALI, sekalian ambil map_state
-map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
+            st.warning(f"Error processing coordinates: {e}")
+            coords = None
+    
+    center_loc = default_center
+    zoom_start = default_zoom
+    
+    if "nama_pasar" in fdf.columns and nama_pasar != "(Semua)" and coords is not None and not coords.empty:
+        row_sel = fdf[fdf["nama_pasar"] == nama_pasar].head(1)
+        if not row_sel.empty:
+            try:
+                lat0 = float(row_sel["lat"].iloc[0])
+                lon0 = float(row_sel["lon"].iloc[0])
+                if pd.notna(lat0) and pd.notna(lon0):
+                    center_loc = [lat0, lon0]
+                    zoom_start = 16
+            except Exception:
+                pass
+    elif coords is not None and len(coords) == 1:
+        center_loc = [coords.iloc[0]["lat"], coords.iloc[0]["lon"]]
+        zoom_start = 14
+    
+    # tiles disembunyikan dari LayerControl (tetap tampil)
+    m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, tiles=None)
+    folium.TileLayer("OpenStreetMap", control=False).add_to(m)
+    
+    # Pane agar batas bisa di atas marker
+    from folium.map import CustomPane
+    m.add_child(CustomPane("batas-top", z_index=650))
+    
+    # Load geojson (kalau ada)
+    geo = None
+    try:
+        geo = load_geojson(FILE_GEOJSON)
+    except Exception as e:
+        st.warning(f"⚠️ GeoJSON tidak terbaca: {e}")
+    
+    if geo is not None:
+        tooltip = folium.GeoJsonTooltip(fields=["kec_label"], aliases=["Kecamatan:"])
+        style_fn = lambda x: {"color": "#8000FF", "weight": 2, "opacity": 1.0, "fill": False, "fillOpacity": 0}
+        try:
+            folium.GeoJson(
+                geo,
+                name="Batas Kecamatan",
+                pane="batas-top",
+                style_function=style_fn,
+                tooltip=tooltip,
+            ).add_to(m)
+        except TypeError:
+            gj_layer = folium.GeoJson(geo, name="Batas Kecamatan", style_function=style_fn, tooltip=tooltip)
+            try:
+                gj_layer.options["pane"] = "batas-top"
+            except Exception:
+                pass
+            gj_layer.add_to(m)
+    
+    # Marker pasar
+    if has_coords and coords is not None and not coords.empty:
+        cluster = MarkerCluster(name="Pasar", show=True).add_to(m)
+    
+        for _, r in fdf.iterrows():
+            try:
+                lat = float(r.get("lat", float("nan")))
+                lon = float(r.get("lon", float("nan")))
+            except Exception:
+                lat, lon = float("nan"), float("nan")
+    
+            if pd.isna(lat) or pd.isna(lon):
+                continue
+    
+            nama = str(r.get("nama_pasar", "Unknown"))
+            alamat = str(r.get("alamat", "Tidak ada alamat"))
+            tahun = r.get("tera_ulang_tahun", None)
+            jumlah = r.get("jumlah_timbangan_tera_ulang", None)
+            jenis = str(r.get("jenis_timbangan", "Tidak ada data"))
+            pedagang = r.get("total_pedagang", None)
+    
+            html = f"""
+            <div style='width: 280px; font-family: Arial, sans-serif;'>
+                <h4 style='margin:8px 0; color: #2E86AB;'>{nama}</h4>
+                <div style='font-size: 12px; color:#666; margin-bottom:8px;'>{alamat}</div>
+                <hr style='margin:6px 0'/>
+                <table style='font-size: 12px; width: 100%;'>
+                    <tr><td><b>Tera Ulang</b></td><td style='padding-left:8px'>: {tahun if pd.notna(tahun) else 'Tidak ada data'}</td></tr>
+                    <tr><td><b>Total UTTP</b></td><td style='padding-left:8px'>: {jumlah if pd.notna(jumlah) else 'Tidak ada data'}</td></tr>
+                    <tr><td><b>Total Pedagang</b></td><td style='padding-left:8px'>: {int(pedagang) if pd.notna(pedagang) else 'Tidak ada data'}</td></tr>
+                    <tr><td><b>Jenis Timbangan</b></td><td style='padding-left:8px'>: {jenis}</td></tr>
+                </table>
+            </div>
+            """
+    
+            tooltip_text = f"{nama} - {tahun if pd.notna(tahun) else 'Tahun tidak diketahui'}"
+            popup = folium.Popup(html, max_width=320)
+    
+            try:
+                y = int(tahun) if pd.notna(tahun) else None
+            except Exception:
+                y = None
+    
+            col = marker_color(y, int(year_pick))
+    
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=10,
+                color=col,
+                fill=True,
+                fill_color=col,
+                fill_opacity=0.7,
+                weight=2,
+                tooltip=folium.Tooltip(tooltip_text),
+                popup=popup,
+            ).add_to(cluster)
+    
+        if not ("nama_pasar" in fdf.columns and nama_pasar != "(Semua)") and len(coords) > 1:
+            try:
+                sw = [coords["lat"].min(), coords["lon"].min()]
+                ne = [coords["lat"].max(), coords["lon"].max()]
+                m.fit_bounds([sw, ne], padding=(30, 30))
+            except Exception as e:
+                st.warning(f"Tidak bisa auto-fit peta: {e}")
+    else:
+        st.warning("⚠️ Tidak ada data koordinat yang valid untuk ditampilkan di peta")
+    
+    folium.LayerControl(collapsed=False).add_to(m)
+    
+    # >>> PANGGIL st_folium SEKALI, sekalian ambil map_state
+    map_state = st_folium(m, height=500, use_container_width=True, key="pasar_map")
 
 
 # =========================
