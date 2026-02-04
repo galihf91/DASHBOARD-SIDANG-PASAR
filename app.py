@@ -1110,14 +1110,11 @@ with st.sidebar:
     st.markdown(f"**Total UTTP (semua jenis):** {total_uttp:,}")
     st.markdown("---")
 
-
 # =========================
 # FILTER DATA (UTAMA)
 # =========================
-fdf = df.copy()
-
-if 'tera_ulang_tahun' in fdf.columns:
-    fdf = fdf[fdf['tera_ulang_tahun'] == int(year_pick)]
+# NOTE: pakai df_y (sudah terfilter tahun di sidebar)
+fdf = df_y.copy()
 
 if 'kecamatan' in fdf.columns and kec != "(Semua)":
     fdf = fdf[fdf['kecamatan'] == kec]
@@ -1125,58 +1122,66 @@ if 'kecamatan' in fdf.columns and kec != "(Semua)":
 if 'nama_pasar' in fdf.columns and nama_pasar != "(Semua)":
     fdf = fdf[fdf['nama_pasar'] == nama_pasar]
 
-# =========================
+
 # =========================
 # KPIs (DINAMIS)
 # =========================
+def _safe_nunique(df_src: pd.DataFrame, col: str) -> int:
+    if df_src is None or df_src.empty or col not in df_src.columns:
+        return 0
+    return int(clean_str_series(df_src[col]).nunique())
+
+def _safe_sum(df_src: pd.DataFrame, col: str) -> int:
+    if df_src is None or df_src.empty or col not in df_src.columns:
+        return 0
+    return int(pd.to_numeric(df_src[col], errors="coerce").fillna(0).sum())
+
+year_show = int(year_pick)
+
+# ===== Level 1: Semua Kecamatan & Semua Pasar =====
 if kec == "(Semua)" and nama_pasar == "(Semua)":
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        total_kec = clean_str_series(fdf['kecamatan']).nunique() if 'kecamatan' in fdf.columns else 0
-        st.metric("Total Kecamatan", total_kec)
+        st.metric("Total Kecamatan", _safe_nunique(fdf, "kecamatan"))
     with c2:
-        total_pasar = clean_str_series(fdf['nama_pasar']).nunique() if 'nama_pasar' in fdf.columns else 0
-        st.metric("Total Seluruh Pasar", total_pasar)
+        st.metric("Total Seluruh Pasar", _safe_nunique(fdf, "nama_pasar"))
     with c3:
-        st.metric("Tahun", int(year_pick))
+        st.metric("Tahun", year_show)
     with c4:
-        total_timb = int(pd.to_numeric(fdf.get('jumlah_timbangan_tera_ulang', 0), errors='coerce').fillna(0).sum())
-        st.metric("Total Timbangan", total_timb)
+        st.metric("Total Timbangan", _safe_sum(fdf, "jumlah_timbangan_tera_ulang"))
 
-# ======= KECAMATAN SAJA =======
+# ===== Level 2: Kecamatan dipilih (Pasar semua) =====
 elif kec != "(Semua)" and nama_pasar == "(Semua)":
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("Kecamatan", kec)
     with c2:
-        total_pasar_kec = clean_str_series(fdf['nama_pasar']).nunique() if 'nama_pasar' in fdf.columns else 0
-        st.metric("Total Pasar", total_pasar_kec)
+        st.metric("Total Pasar", _safe_nunique(fdf, "nama_pasar"))
     with c3:
-        st.metric("Tahun", int(year_pick))
+        st.metric("Tahun", year_show)
     with c4:
-        total_timb = int(pd.to_numeric(fdf.get('jumlah_timbangan_tera_ulang', 0), errors='coerce').fillna(0).sum())
-        st.metric("Total Timbangan", total_timb)
+        st.metric("Total Timbangan", _safe_sum(fdf, "jumlah_timbangan_tera_ulang"))
 
-# ======= PASAR DIPILIH =======
+# ===== Level 3: Pasar dipilih =====
 else:
-    c1, c2, c3, c4 = st.columns(4)
+    # amankan kecamatan kalau user pilih pasar dulu dan kec belum kebaca
+    kec_show = kec
+    if kec_show == "(Semua)":
+        if (fdf is not None) and (not fdf.empty) and ("kecamatan" in fdf.columns):
+            vals = clean_str_series(fdf["kecamatan"])
+            kec_show = vals.iloc[0] if len(vals) else "—"
+        else:
+            kec_show = "—"
 
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("Nama Pasar", nama_pasar if nama_pasar != "(Semua)" else "—")
-
     with c2:
-        if kec != "(Semua)":
-            st.metric("Kecamatan", kec)
-        else:
-            kec_auto = fdf['kecamatan'].dropna().iloc[0] if ('kecamatan' in fdf.columns and not fdf.empty) else "—"
-            st.metric("Kecamatan", kec_auto)
-
+        st.metric("Kecamatan", kec_show)
     with c3:
-        st.metric("Tahun", int(year_pick))
-
+        st.metric("Tahun", year_show)
     with c4:
-        total_timb = int(pd.to_numeric(fdf.get('jumlah_timbangan_tera_ulang', 0), errors='coerce').fillna(0).sum())
-        st.metric("Total Timbangan", total_timb)
+        st.metric("Total Timbangan", _safe_sum(fdf, "jumlah_timbangan_tera_ulang"))
 
 # =========================
 # MAP
